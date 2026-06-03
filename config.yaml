@@ -1,0 +1,32 @@
+server:
+  host: 127.0.0.1
+  port: 8000
+  open_browser: true
+
+openalex:
+  mailto: kiki.brettl@gmail.com
+  per_page: 200
+  default_search: null
+  default_filters: "from_publication_date:2022-01-01"
+  max_papers: 25
+
+download:
+  workers: 14 # number of cores to use for downloading and processing papers
+  paper_deadline_s: 45
+  max_pdf_bytes: 30000000
+  connect_timeout: 5
+  read_timeout: 40
+  max_chars: 400000
+  output_basename: papers
+
+ollama:
+  url: http://localhost:11434
+  model: null
+  request_timeout: 300
+
+retrieval:
+  top_k: 5
+  context_budget: 9000
+
+theme:
+  anthropic_model: claude-opus-4-8 # claude-haiku-4-5-20251001

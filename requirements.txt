@@ -1,0 +1,7 @@
+django
+requests
+pymupdf
+pandas
+pyarrow
+pyyaml
+anthropic
