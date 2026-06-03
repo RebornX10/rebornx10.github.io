@@ -1,7 +1,7 @@
 # 🔬 sci_paper_llm — Local Paper Research Assistant
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/RebornX10/sci_paper_llm)
-[![CI](https://github.com/RebornX10/sci_paper_llm/actions/workflows/ci.yml/badge.svg)](https://github.com/RebornX10/sci_paper_llm/actions/workflows/ci.yml)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/RebornX10/rebornx10.github.io)
+[![CI](https://github.com/RebornX10/rebornx10.github.io/actions/workflows/ci.yml/badge.svg)](https://github.com/RebornX10/rebornx10.github.io/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Build a dataset of **open-access** scientific papers and ask questions about them with a **local LLM** (Ollama) — all running on your machine.
