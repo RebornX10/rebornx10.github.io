@@ -9,7 +9,7 @@ openalex:
   default_search: null
   default_filters: "from_publication_date:2022-01-01"
   max_papers: 25
-  max_papers_cap: 1000
+  max_papers_cap: 10000
 
 download:
   workers: 14 # number of cores to use for downloading and processing papers
