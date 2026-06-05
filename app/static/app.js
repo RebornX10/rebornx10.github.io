@@ -117,9 +117,57 @@ $('cancel').onclick = async () => {
   try { await post('/cancel', { job: _jobId }); } catch (e) {}
 };
 
-// fleshed out in later phases (browse panel / notifications); safe no-ops for now
-function loadCorpus(){}
-function notifyDone(){}
+// --- corpus browse panel (also used to resume a loaded corpus on page load) ---
+let _corpusRows = [];
+async function loadCorpus(){
+  let data;
+  try { data = await (await fetch('/corpus')).json(); } catch (e) { return; }
+  if (!data || !data.count) { $('corpus').style.display = 'none'; return; }
+  _corpusRows = data.papers || [];
+  $('corpus').style.display = '';
+  $('qa').classList.remove('disabled');           // a corpus is loaded -> enable Q&A
+  $('corpusTitle').textContent = data.topic || 'Corpus';
+  const note = data.count > data.shown ? `, showing first ${data.shown}` : '';
+  $('corpusCount').textContent = `· ${data.count} papers · ${data.with_text} with full text${note}`;
+  renderCorpus();
+}
+function renderCorpus(){
+  const f = ($('corpusFilter').value || '').trim().toLowerCase();
+  const rows = _corpusRows.map((r, i) => ({ r, i }))
+    .filter(({ r }) => !f || ((r.title || '') + ' ' + (r.journal || '')).toLowerCase().includes(f));
+  $('corpusTable').querySelector('tbody').innerHTML = rows.map(({ r, i }) =>
+    `<tr class="crow" data-i="${i}"><td>${esc(r.title)}</td>` +
+    `<td class="muted">${esc(r.journal || '')}</td>` +
+    `<td class="muted">${esc(r.date || '')}</td>` +
+    `<td style="text-align:center">${r.has_text ? '✓' : '·'}</td></tr>`).join('');
+  $('corpusMore').textContent = rows.length ? '' : 'No matching papers.';
+}
+$('corpusFilter').addEventListener('input', renderCorpus);
+$('corpusTable').addEventListener('click', e => {
+  const tr = e.target.closest('.crow');
+  if (!tr) return;
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('cdetail')) { next.remove(); return; }
+  document.querySelectorAll('.cdetail').forEach(el => el.remove());
+  const r = _corpusRows[+tr.dataset.i];
+  if (!r) return;
+  const bits = [];
+  if (r.authors && r.authors.length) bits.push('<b>Authors:</b> ' + esc(r.authors.join(', ')));
+  if (r.country) bits.push('<b>Country:</b> ' + esc(r.country));
+  if (r.abstract) bits.push(esc(r.abstract));
+  const links = [];
+  if (r.doi) links.push(`<a href="${esc(r.doi)}" target="_blank" rel="noopener">DOI</a>`);
+  if (r.pdf_url) links.push(`<a href="${esc(r.pdf_url)}" target="_blank" rel="noopener">PDF</a>`);
+  if (links.length) bits.push(links.join(' · '));
+  const det = document.createElement('tr');
+  det.className = 'cdetail';
+  det.innerHTML = `<td colspan="4">${bits.join('<br>') || 'No abstract.'}</td>`;
+  tr.after(det);
+});
+
+function notifyDone(){}   // fleshed out in the notifications phase
+
+loadCorpus();   // resume: show any already-loaded corpus on page load
 
 function poll(job) {
   const t = setInterval(async () => {

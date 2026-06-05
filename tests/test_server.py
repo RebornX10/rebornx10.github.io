@@ -149,6 +149,44 @@ def test_build_clamps_to_cap(monkeypatch):
     assert captured["n"] == server.effective_max_papers()
 
 
+def test_corpus_endpoint_empty():
+    server.CORPUS.clear()
+    data = json.loads(server.corpus_view(rf.get("/corpus")).content)
+    assert data["count"] == 0 and data["papers"] == []
+
+
+def test_corpus_endpoint_lists_papers():
+    server.CORPUS["topic"] = "graphene"
+    server.CORPUS["df"] = pd.DataFrame([
+        {"title": "Graphene", "authors": ["Ada", "Alan"], "journal": "Nature", "date": "2023",
+         "country": "GB", "abstract": "about graphene", "content": "full text", "doi": "10.1/x",
+         "pdf_url": "http://x/a.pdf"},
+        {"title": "Other", "authors": ["Bob"], "journal": "J", "date": "2022",
+         "country": "US", "abstract": "x", "content": None, "doi": None, "pdf_url": None}])
+    data = json.loads(server.corpus_view(rf.get("/corpus")).content)
+    assert data["count"] == 2 and data["with_text"] == 1 and data["topic"] == "graphene"
+    assert data["papers"][0]["title"] == "Graphene"
+    assert data["papers"][0]["has_text"] is True and data["papers"][1]["has_text"] is False
+    assert data["papers"][0]["authors"] == ["Ada", "Alan"]
+
+
+def test_download_csv_and_parquet():
+    server.CORPUS["topic"] = "graphene"
+    server.CORPUS["df"] = pd.DataFrame([{"title": "T", "content": "c"}])
+    csv = server.download_csv(rf.get("/download/csv"))
+    assert csv.status_code == 200 and csv["Content-Type"] == "text/csv"
+    assert "attachment" in csv["Content-Disposition"] and ".csv" in csv["Content-Disposition"]
+    assert b"title" in csv.content
+    pq = server.download_parquet(rf.get("/download/parquet"))
+    assert pq.status_code == 200 and pq.content[:4] == b"PAR1"
+
+
+def test_download_without_corpus():
+    server.CORPUS.clear()
+    assert server.download_csv(rf.get("/download/csv")).status_code == 404
+    assert server.download_parquet(rf.get("/download/parquet")).status_code == 404
+
+
 def test_metrics_endpoint():
     resp = server.metrics_view(rf.get("/metrics"))
     data = json.loads(resp.content)

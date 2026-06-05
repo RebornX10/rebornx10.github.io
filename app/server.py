@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import html
+import io
 import json
 import logging
 import mimetypes
+import re
 import sys
 import threading
 import time
@@ -315,6 +317,68 @@ def suggest(request):
     return JsonResponse({"suggestions": deduped})
 
 
+def _s(v) -> str:
+    return v if isinstance(v, str) else ""
+
+
+def _alist(v) -> list:
+    if isinstance(v, (list, tuple)):
+        return list(v)
+    if hasattr(v, "tolist"):
+        return list(v.tolist())
+    return []
+
+
+def _slug(s: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
+    return s or "corpus"
+
+
+def corpus_view(request):
+    """Summary + a page of papers for the browse panel (and for resuming)."""
+    df = CORPUS.get("df")
+    if df is None or len(df) == 0:
+        return JsonResponse({"count": 0, "papers": []})
+    limit = max(1, min(int(request.GET.get("limit", 300)), 1000))
+    total = len(df)
+    with_text = int(df["content"].notna().sum()) if "content" in df.columns else 0
+    papers = []
+    for r in df.head(limit).to_dict("records"):
+        papers.append({
+            "title": _s(r.get("title")) or "Untitled",
+            "authors": [a for a in _alist(r.get("authors")) if isinstance(a, str)][:8],
+            "journal": _s(r.get("journal")),
+            "date": _s(r.get("date")),
+            "country": _s(r.get("country")),
+            "abstract": _s(r.get("abstract"))[:800],
+            "has_text": bool(_s(r.get("content"))),
+            "doi": _s(r.get("doi")),
+            "pdf_url": _s(r.get("pdf_url")),
+        })
+    return JsonResponse({"topic": CORPUS.get("topic") or "", "count": total,
+                         "with_text": with_text, "shown": len(papers), "papers": papers})
+
+
+def download_csv(request):
+    df = CORPUS.get("df")
+    if df is None or len(df) == 0:
+        return HttpResponseNotFound("no corpus")
+    resp = HttpResponse(df.to_csv(index=False), content_type="text/csv")
+    resp["Content-Disposition"] = f'attachment; filename="papers-{_slug(CORPUS.get("topic"))}.csv"'
+    return resp
+
+
+def download_parquet(request):
+    df = CORPUS.get("df")
+    if df is None or len(df) == 0:
+        return HttpResponseNotFound("no corpus")
+    buf = io.BytesIO()
+    df.to_parquet(buf)
+    resp = HttpResponse(buf.getvalue(), content_type="application/octet-stream")
+    resp["Content-Disposition"] = f'attachment; filename="papers-{_slug(CORPUS.get("topic"))}.parquet"'
+    return resp
+
+
 def metrics_view(request):
     m = metrics()
     m["ram_used_gb"] = round(m["ram_used_mb"] / 1024, 2)
@@ -377,6 +441,9 @@ urlpatterns = [
     path("ask", ask),
     path("ask_stream", ask_stream),
     path("suggest", suggest),
+    path("corpus", corpus_view),
+    path("download/csv", download_csv),
+    path("download/parquet", download_parquet),
     path("metrics", metrics_view),
     path("static/styles.css", app_css),
     path("static/app.js", app_js),
