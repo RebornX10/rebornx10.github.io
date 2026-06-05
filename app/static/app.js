@@ -125,7 +125,7 @@ function poll(job) {
 // --- ask ---
 const esc = s => String(s).replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let _sources = [];
+let _sources = [], _sugg = [], _ghost = '';
 
 // Render the answer: HTML-escape it, then turn [n] markers into hoverable citations.
 function renderAnswer(text){
@@ -135,18 +135,51 @@ function renderAnswer(text){
   });
 }
 
+// --- answer-time estimate: rolling average of past answer durations (persisted) ---
+let _askDur = [];
+try { _askDur = JSON.parse(localStorage.getItem('askDur') || '[]'); } catch (e) { _askDur = []; }
+let _askT0 = 0, _askTimer = null, _askEst = 0;
+const askEstimate = () => _askDur.length ? _askDur.reduce((a, b) => a + b, 0) / _askDur.length : 0;
+function startAskClock(){
+  _askT0 = Date.now(); _askEst = askEstimate();
+  $('abar').style.transition = 'width .3s ease-out';
+  const tick = () => {
+    const el = (Date.now() - _askT0) / 1000;
+    if (_askEst > 0) {
+      const rem = _askEst - el;
+      $('astage').textContent = 'Thinking… ⏱ ' + fmt(el)
+        + (rem > 1 ? ' · ~' + fmt(rem) + ' left' : ' · almost there…');
+      $('abar').style.width = Math.min(96, 100 * el / _askEst) + '%';
+    } else {
+      $('astage').textContent = 'Thinking… ⏱ ' + fmt(el) + ' · estimating…';
+      $('abar').style.width = Math.min(92, 100 * (1 - Math.exp(-el / 8))) + '%';
+    }
+  };
+  tick(); _askTimer = setInterval(tick, 250);
+}
+function stopAskClock(ok){
+  clearInterval(_askTimer); _askTimer = null;
+  $('abar').style.width = '100%';
+  if (ok) {
+    _askDur.push((Date.now() - _askT0) / 1000);
+    _askDur = _askDur.slice(-8);
+    try { localStorage.setItem('askDur', JSON.stringify(_askDur)); } catch (e) {}
+  }
+}
+
 $('ask').onclick = async () => {
   const question = $('q').value.trim();
   if (!question) return;
-  $('ac').classList.remove('open');
+  _ghost = ''; $('ghost').innerHTML = '';
   $('ask').disabled = true; $('answer').style.display = 'none'; $('sources').textContent = '';
-  $('abarwrap').style.display = 'block'; $('abar').style.width = '100%';
-  $('abar').style.transition = 'none'; $('abar').style.opacity = '.6';
-  $('astage').textContent = 'Thinking with global model…';
-  const res = await post('/ask', {question});
-  $('abarwrap').style.display = 'none'; $('astage').textContent = '';
+  $('abarwrap').style.display = 'block'; $('abar').style.opacity = '.8';
+  startAskClock();
+  const res = await post('/ask', { question }).catch(() => ({ error: 'Network error.' }));
+  stopAskClock(!res.error);
+  $('abarwrap').style.display = 'none';
   $('ask').disabled = false;
   if (res.error) { $('astage').textContent = res.error; return; }
+  $('astage').textContent = 'Answered in ' + fmt((Date.now() - _askT0) / 1000) + '.';
   _sources = res.sources || [];
   $('answer').style.display = 'block';
   renderAnswer(res.answer);
@@ -182,38 +215,42 @@ function hideTip(){ _tip.style.display = 'none'; }
   }));
 $('qa').addEventListener('mouseout', e => { if (e.target.closest('.cite,.src-chip')) hideTip(); });
 
-// --- autocomplete for the question bar ---
-let _sugg = [], _acItems = [], _acIdx = -1;
+// --- predictive sentence completion (inline ghost text) ---
 async function loadSugg(){
   try { _sugg = (await (await fetch('/suggest')).json()).suggestions || []; }
   catch (e) { _sugg = []; }
 }
-function renderAC(){
-  const v = $('q').value.trim().toLowerCase();
-  _acItems = _sugg.filter(s => !v || s.toLowerCase().includes(v)).slice(0, 8);
-  _acIdx = -1;
-  if (!_acItems.length) { $('ac').classList.remove('open'); $('ac').innerHTML = ''; return; }
-  $('ac').innerHTML = _acItems.map((s, i) =>
-    `<div class="ac-item" data-i="${i}">${esc(s)}</div>`).join('');
-  $('ac').classList.add('open');
-  [...$('ac').children].forEach(el => {
-    el.onmousedown = ev => { ev.preventDefault(); $('q').value = _acItems[+el.dataset.i];
-      $('ac').classList.remove('open'); $('q').focus(); };
-  });
-}
-function acHighlight(){ [...$('ac').children].forEach((el, i) => el.classList.toggle('active', i === _acIdx)); }
-$('q').addEventListener('focus', async () => { if (!_sugg.length) await loadSugg(); renderAC(); });
-$('q').addEventListener('input', renderAC);
-$('q').addEventListener('blur', () => setTimeout(() => $('ac').classList.remove('open'), 130));
-$('q').addEventListener('keydown', e => {
-  const open = $('ac').classList.contains('open');
-  if (open && e.key === 'ArrowDown') { e.preventDefault(); _acIdx = Math.min(_acIdx + 1, _acItems.length - 1); acHighlight(); }
-  else if (open && e.key === 'ArrowUp') { e.preventDefault(); _acIdx = Math.max(_acIdx - 1, 0); acHighlight(); }
-  else if (e.key === 'Enter') {
-    if (open && _acIdx >= 0) { e.preventDefault(); $('q').value = _acItems[_acIdx]; $('ac').classList.remove('open'); }
-    else { $('ac').classList.remove('open'); $('ask').click(); }
+const _atEnd = () => { const el = $('q'); return el.selectionStart === el.value.length
+  && el.selectionStart === el.selectionEnd; };
+function predict(){
+  const val = $('q').value;
+  _ghost = '';
+  if (val.trim()) {
+    const lower = val.toLowerCase();
+    const hit = _sugg.find(s => s.length > val.length && s.toLowerCase().startsWith(lower));
+    if (hit) _ghost = hit.slice(val.length);
   }
-  else if (e.key === 'Escape') { $('ac').classList.remove('open'); }
+  // typed text (transparent, just for spacing) + predicted suffix (muted)
+  $('ghost').innerHTML = _ghost ? `<span class="typed">${esc(val)}</span>${esc(_ghost)}` : '';
+  $('ghost').scrollLeft = $('q').scrollLeft;
+}
+function acceptGhost(){
+  if (!_ghost) return false;
+  $('q').value += _ghost; _ghost = ''; $('ghost').innerHTML = '';
+  return true;
+}
+$('q').addEventListener('focus', async () => { if (!_sugg.length) await loadSugg(); predict(); });
+$('q').addEventListener('input', predict);
+$('q').addEventListener('scroll', () => { $('ghost').scrollLeft = $('q').scrollLeft; });
+$('q').addEventListener('blur', () => { _ghost = ''; $('ghost').innerHTML = ''; });
+$('q').addEventListener('keydown', e => {
+  if (_ghost && (e.key === 'Tab' || (e.key === 'ArrowRight' && _atEnd()))) {
+    e.preventDefault(); acceptGhost();
+  } else if (e.key === 'Enter') {
+    _ghost = ''; $('ghost').innerHTML = ''; $('ask').click();
+  } else if (e.key === 'Escape') {
+    _ghost = ''; $('ghost').innerHTML = '';
+  }
 });
 
 // --- live system metrics ---

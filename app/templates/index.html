@@ -50,9 +50,11 @@
       <div class="card disabled" id="qa">
         <label>Ask a question about this topic</label>
         <div class="acwrap">
-          <input id="q" placeholder="What are the main findings?" autocomplete="off">
-          <div class="ac" id="ac"></div>
+          <div class="ghost" id="ghost" aria-hidden="true"></div>
+          <input id="q" placeholder="What are the main findings?" autocomplete="off"
+                 autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
+        <div class="hint">Tab or → to complete</div>
         <button id="ask">Ask</button>
         <div class="bar" id="abarwrap" style="display:none"><i id="abar"></i></div>
         <div class="stage" id="astage"></div>
