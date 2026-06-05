@@ -15,12 +15,14 @@ rf = RequestFactory()
 def clear_state(monkeypatch):
     server.JOBS.clear()
     server.CORPUS.clear()
+    server._LOADED.clear()
     # keep build tests hermetic: no corpus-cache reads/writes to disk
     monkeypatch.setattr(server, "load_from_cache", lambda key: None)
     monkeypatch.setattr(server, "save_to_cache", lambda *a, **k: None)
     yield
     server.JOBS.clear()
     server.CORPUS.clear()
+    server._LOADED.clear()
 
 
 def _wait_done(job_id, timeout=5):
@@ -186,6 +188,34 @@ def test_download_without_corpus():
     server.CORPUS.clear()
     assert server.download_csv(rf.get("/download/csv")).status_code == 404
     assert server.download_parquet(rf.get("/download/parquet")).status_code == 404
+
+
+def test_corpora_lists_current(monkeypatch):
+    monkeypatch.setattr(server, "list_cached", lambda: [
+        {"key": "k1", "topic": "alpha", "count": 1, "created": 2.0},
+        {"key": "k2", "topic": "beta", "count": 1, "created": 1.0}])
+    server._set_corpus(pd.DataFrame([{"title": "A", "content": "a"}]), "alpha", "k1")
+    data = json.loads(server.corpora_view(rf.get("/corpora")).content)
+    assert data["current"] == "k1"
+    assert [i["key"] for i in data["items"]] == ["k1", "k2"]
+
+
+def test_corpus_select_switches(monkeypatch):
+    dfB = pd.DataFrame([{"title": "B", "content": "b"}])
+    server._set_corpus(pd.DataFrame([{"title": "A", "content": "a"}]), "alpha", "k1")
+    monkeypatch.setattr(server, "load_with_topic",
+                        lambda key: (dfB, "beta") if key == "k2" else (None, ""))
+    resp = server.corpus_select(rf.post("/corpus/select", data=json.dumps({"key": "k2"}),
+                                        content_type="application/json"))
+    assert resp.status_code == 200
+    assert server.CORPUS["topic"] == "beta" and server.CORPUS["key"] == "k2"
+
+
+def test_corpus_select_unknown(monkeypatch):
+    monkeypatch.setattr(server, "load_with_topic", lambda key: (None, ""))
+    resp = server.corpus_select(rf.post("/corpus/select", data=json.dumps({"key": "nope"}),
+                                        content_type="application/json"))
+    assert resp.status_code == 404
 
 
 def test_metrics_endpoint():

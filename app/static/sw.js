@@ -9,8 +9,8 @@ const SHELL = [
   '/static/icon-192.png', '/static/icon-512.png', '/static/icon-maskable-512.png',
   '/static/apple-touch-icon.png', '/static/favicon.png',
 ];
-const API = ['/build', '/status', '/ask', '/ask_stream', '/suggest', '/metrics',
-             '/corpus', '/download/csv', '/download/parquet', '/cancel'];
+const API = ['/build', '/status', '/ask', '/ask_stream', '/suggest', '/metrics', '/events',
+             '/corpus', '/corpora', '/corpus/select', '/download/csv', '/download/parquet', '/cancel'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

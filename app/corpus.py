@@ -106,3 +106,32 @@ def load_last() -> tuple[Optional[pd.DataFrame], Optional[str]]:
         except Exception:
             continue
     return None, None
+
+
+def list_cached() -> list:
+    """All cached corpora (newest first) for the topic switcher."""
+    out = []
+    for m in glob.glob(os.path.join(_cache_dir(), "*.json")):
+        try:
+            meta = json.load(open(m))
+            out.append({"key": meta["key"], "topic": meta.get("topic", ""),
+                        "count": int(meta.get("count", 0)),
+                        "created": meta.get("created", os.path.getmtime(m))})
+        except Exception:
+            continue
+    out.sort(key=lambda x: x["created"], reverse=True)
+    return out
+
+
+def load_with_topic(key: str) -> tuple[Optional[pd.DataFrame], str]:
+    df = load_from_cache(key)
+    if df is None:
+        return None, ""
+    topic = ""
+    p = os.path.join(_cache_dir(), f"{key}.json")
+    if os.path.exists(p):
+        try:
+            topic = json.load(open(p)).get("topic", "")
+        except Exception:
+            pass
+    return df, topic

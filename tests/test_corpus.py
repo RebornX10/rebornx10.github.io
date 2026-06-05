@@ -68,6 +68,16 @@ def test_corpus_cache_roundtrip(tmp_path, monkeypatch):
     assert last_topic == "malaria" and len(last_df) == 1
 
 
+def test_list_cached_and_load_with_topic(tmp_path, monkeypatch):
+    monkeypatch.setitem(corpus.CONFIG["download"], "output_basename", str(tmp_path / "papers"))
+    corpus.save_to_cache(corpus.cache_key("a", "", "", 10), pd.DataFrame([{"title": "x"}]), "alpha")
+    corpus.save_to_cache(corpus.cache_key("b", "", "", 10), pd.DataFrame([{"title": "y"}]), "beta")
+    topics = {i["topic"] for i in corpus.list_cached()}
+    assert {"alpha", "beta"} <= topics
+    df, topic = corpus.load_with_topic(corpus.cache_key("a", "", "", 10))
+    assert topic == "alpha" and len(df) == 1
+
+
 def test_cache_key_is_request_specific():
     a = corpus.cache_key("malaria", "", "", 25)
     assert a == corpus.cache_key("Malaria", "", "", 25)   # case-insensitive topic

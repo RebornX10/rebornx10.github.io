@@ -134,7 +134,34 @@ async function loadCorpus(){
   const note = data.count > data.shown ? `, showing first ${data.shown}` : '';
   $('corpusCount').textContent = `· ${data.count} papers · ${data.with_text} with full text${note}`;
   renderCorpus();
+  loadCorpora();
 }
+
+// populate the "switch corpus" dropdown from previously built corpora
+async function loadCorpora(){
+  let data;
+  try { data = await (await fetch('/corpora')).json(); } catch (e) { return; }
+  const items = (data && data.items) || [];
+  const sel = $('corpusSwitch');
+  if (items.length < 2) { sel.style.display = 'none'; return; }
+  sel.innerHTML = items.map(it =>
+    `<option value="${it.key}">${esc((it.topic || 'corpus') + ' (' + it.count + ')')}</option>`).join('');
+  sel.value = data.current || items[0].key;
+  sel.style.display = '';
+}
+$('corpusSwitch').addEventListener('change', async () => {
+  const key = $('corpusSwitch').value;
+  try {
+    const r = await (await fetch('/corpus/select', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) })).json();
+    if (r && r.ok) {
+      $('answer').style.display = 'none'; $('answer').innerHTML = '';
+      $('sources').textContent = ''; $('astage').textContent = '';
+      $('corpusFilter').value = '';
+      loadCorpus();   // refresh table + counts for the newly selected corpus
+    }
+  } catch (e) {}
+});
 function renderCorpus(){
   const f = ($('corpusFilter').value || '').trim().toLowerCase();
   const rows = _corpusRows.map((r, i) => ({ r, i }))

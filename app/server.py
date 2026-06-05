@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
@@ -25,7 +26,9 @@ from django.http import (
 from django.urls import path
 
 from app.config import CONFIG
-from app.corpus import cache_key, load_from_cache, load_last, save_corpus, save_to_cache
+from app.corpus import (
+    cache_key, list_cached, load_from_cache, load_with_topic, save_corpus, save_to_cache,
+)
 from app.download import download_fulltext
 from app.ollama_client import chat, chat_stream, pick_model
 from app.openalex import fetch_metadata
@@ -50,16 +53,24 @@ SW_JS = (_STATIC / "sw.js").read_text().replace("__SWV__", _SW_VERSION)
 
 JOBS: dict[str, dict] = {}
 CORPUS: dict[str, object] = {}
+_LOADED: "OrderedDict[str, object]" = OrderedDict()  # small in-memory LRU of recent corpora
+_LRU_MAX = 3
 _LOCK = threading.Lock()
 
 # Live download stats for the System panel (polled via /metrics every second).
 DL: dict[str, object] = {"active": False, "done": 0, "total": 0, "avg_s": 0.0, "t0": 0.0}
 
 
-def _set_corpus(df, topic: str) -> None:
+def _set_corpus(df, topic: str, key: str = "") -> None:
     with _LOCK:
         CORPUS["df"] = df
         CORPUS["topic"] = topic
+        CORPUS["key"] = key
+        if key:
+            _LOADED[key] = df
+            _LOADED.move_to_end(key)
+            while len(_LOADED) > _LRU_MAX:
+                _LOADED.popitem(last=False)
 
 
 def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> None:
@@ -79,7 +90,7 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
     key = cache_key(topic, date_from, date_to, n)
     cached = load_from_cache(key)
     if cached is not None and not job.get("cancel"):
-        _set_corpus(cached, topic)
+        _set_corpus(cached, topic, key)
         with_text = int(cached["content"].notna().sum()) if "content" in cached else 0
         log.info("Cache hit for %r: %d papers", topic, len(cached))
         job.update(stage=f"Loaded {len(cached)} papers from cache ({with_text} with full text).",
@@ -157,7 +168,7 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
         job.update(stage="Assembling dataset…", progress=97)
         log.info("Assembling DataFrame from %d papers…", total)
         df = pd.DataFrame([asdict(p) for p in papers])
-        _set_corpus(df, topic)
+        _set_corpus(df, topic, key)
         save_corpus(df)
         save_to_cache(key, df, topic)
         with_text = int(df["content"].notna().sum())
@@ -363,6 +374,27 @@ def corpus_view(request):
                          "with_text": with_text, "shown": len(papers), "papers": papers})
 
 
+def corpora_view(request):
+    """List built corpora (from the cache) for the topic switcher."""
+    return JsonResponse({"current": CORPUS.get("key") or "", "items": list_cached()})
+
+
+def corpus_select(request):
+    """Switch the active corpus to a previously built one (from the LRU or cache)."""
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST only")
+    key = json.loads(request.body or "{}").get("key", "")
+    df = _LOADED.get(key)
+    topic = CORPUS.get("topic", "") if key == CORPUS.get("key") else ""
+    if df is None:
+        df, topic = load_with_topic(key)
+    if df is None:
+        return JsonResponse({"error": "unknown corpus"}, status=404)
+    _set_corpus(df, topic, key)
+    log.info("Switched corpus -> topic=%r (%d papers)", topic, len(df))
+    return JsonResponse({"ok": True, "topic": topic, "count": int(len(df))})
+
+
 def download_csv(request):
     df = CORPUS.get("df")
     if df is None or len(df) == 0:
@@ -446,6 +478,8 @@ urlpatterns = [
     path("ask_stream", ask_stream),
     path("suggest", suggest),
     path("corpus", corpus_view),
+    path("corpora", corpora_view),
+    path("corpus/select", corpus_select),
     path("download/csv", download_csv),
     path("download/parquet", download_parquet),
     path("metrics", metrics_view),
@@ -486,10 +520,12 @@ def run() -> None:
     log.info("=== Global Paper Research Assistant — starting ===")
     log_resources()
     if CORPUS.get("df") is None:  # resume the most recent corpus after a restart
-        df, topic = load_last()
-        if df is not None:
-            _set_corpus(df, topic or "")
-            log.info("Resumed last corpus: topic=%r, %d papers", topic, len(df))
+        items = list_cached()
+        if items:
+            df, topic = load_with_topic(items[0]["key"])
+            if df is not None:
+                _set_corpus(df, topic, items[0]["key"])
+                log.info("Resumed last corpus: topic=%r, %d papers", topic, len(df))
     log.info("Ollama: url=%s, model=%s", CONFIG["ollama"]["url"], pick_model() or "(none installed)")
     log.info("OpenAlex: mailto=%s, per_page=%d", CONFIG["openalex"]["mailto"], CONFIG["openalex"]["per_page"])
     log.info("Serving on %s", url)
