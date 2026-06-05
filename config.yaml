@@ -19,8 +19,8 @@ download:
   read_timeout: 40
   max_chars: 400000
   output_basename: papers
-  ram_fraction: 0.7        # fraction of available RAM the corpus may use (peak)
-  ram_per_paper_mb: 0.4    # peak memory budget per paper (text + save-time copy)
+  ram_fraction: 0.8        # fraction of available RAM the corpus may use (peak)
+  ram_per_paper_mb: 0.15   # measured peak memory per paper (runtime guard is the real safety net)
   ram_guard_pct: 85        # abort a build if projected peak RAM would exceed this
   ram_target_pct: 80       # suggested cap aims to keep peak RAM at/below this
 
