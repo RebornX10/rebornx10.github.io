@@ -21,6 +21,7 @@ from app.download import download_many
 from app.ollama_client import chat, pick_model
 from app.openalex import fetch_metadata
 from app.retrieval import build_context
+from app.system import effective_max_papers, metrics
 
 TEMPLATE = (Path(__file__).parent / "templates" / "index.html").read_text()
 
@@ -71,7 +72,7 @@ def index(request):
     model = pick_model()
     banner = "" if model else "No Ollama model found. Run `ollama pull llama3.2`, then reload."
     page = TEMPLATE.replace("{{MODEL}}", html.escape(model or "none"))
-    page = page.replace("{{MAX_PAPERS}}", str(CONFIG["openalex"]["max_papers_cap"]))
+    page = page.replace("{{MAX_PAPERS}}", str(effective_max_papers()))
     return HttpResponse(page.replace("{{BANNER}}", html.escape(banner)))
 
 
@@ -83,7 +84,7 @@ def build(request):
     if not topic:
         return HttpResponseBadRequest("topic is required")
     n = max(1, min(int(data.get("n", CONFIG["openalex"]["max_papers"])),
-                   CONFIG["openalex"]["max_papers_cap"]))
+                   effective_max_papers()))
     job_id = uuid.uuid4().hex
     JOBS[job_id] = {"stage": "Starting…", "progress": 0, "done": False, "error": False}
     threading.Thread(
@@ -121,6 +122,10 @@ def ask(request):
     return JsonResponse({"answer": answer, "sources": sources, "model": model})
 
 
+def metrics_view(request):
+    return JsonResponse(metrics())
+
+
 if not settings.configured:
     settings.configure(
         DEBUG=True,
@@ -135,6 +140,7 @@ urlpatterns = [
     path("build", build),
     path("status", status),
     path("ask", ask),
+    path("metrics", metrics_view),
 ]
 
 application = get_wsgi_application()

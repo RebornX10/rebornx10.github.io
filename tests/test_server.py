@@ -34,7 +34,7 @@ def test_index_renders(monkeypatch):
     resp = server.index(rf.get("/"))
     body = resp.content.decode()
     assert resp.status_code == 200
-    assert "Local Paper Research Assistant" in body
+    assert "Global Paper Research Assistant" in body
     assert "llama3.2" in body
 
 
@@ -87,7 +87,14 @@ def test_build_clamps_to_cap(monkeypatch):
                                 content_type="application/json"))
     job_id = json.loads(resp.content)["job_id"]
     _wait_done(job_id)
-    assert captured["n"] == server.CONFIG["openalex"]["max_papers_cap"]
+    assert captured["n"] == server.effective_max_papers()
+
+
+def test_metrics_endpoint():
+    resp = server.metrics_view(rf.get("/metrics"))
+    data = json.loads(resp.content)
+    for k in ("cpu", "ram", "net_kbps", "ram_used_mb", "ram_total_mb"):
+        assert k in data
 
 
 def test_status_unknown_job():

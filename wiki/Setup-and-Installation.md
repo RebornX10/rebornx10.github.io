@@ -28,9 +28,9 @@ docker run --rm -p 8000:8000 sci-paper-llm          # macOS / Windows
 
 The image defaults `OLLAMA_URL=http://host.docker.internal:11434` so it reaches Ollama running on your host.
 
-## Option 3 — Local with the helper script
+## Option 3 — Global with the helper script
 
-Requires Ollama running locally.
+Requires Ollama running globally.
 
 ```bash
 ./run.sh
@@ -38,7 +38,7 @@ Requires Ollama running locally.
 
 `run.sh` creates/uses a `.venv`, installs dependencies if missing, and starts the app.
 
-## Option 4 — Manual local install
+## Option 4 — Manual global install
 
 ```bash
 python3 -m venv .venv

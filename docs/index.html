@@ -2,8 +2,8 @@
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sci_paper_llm — Local Paper Research Assistant</title>
-<meta name="description" content="Build open-access scientific-paper datasets from OpenAlex and query them with a local Ollama model.">
+<title>sci_paper_llm — Global Paper Research Assistant</title>
+<meta name="description" content="Build open-access scientific-paper datasets from OpenAlex and query them with a global Ollama model.">
 <style>
   :root { --bg:#0f1117; --card:#1a1d27; --line:#2a2f3e; --fg:#e6e9ef;
           --muted:#9aa3b2; --accent:#6ea8fe; --ok:#3fb950; }
@@ -55,17 +55,14 @@
   <header>
     <h1>🔬 sci_paper_llm</h1>
     <p class="tag">Build datasets of <strong>open-access</strong> scientific papers from OpenAlex,
-       and ask questions about them with a <strong>local LLM</strong> — all on your machine.</p>
+       and ask questions about them with a <strong>global LLM</strong> — all on your machine.</p>
     <p class="badges">
       <a href="https://huggingface.co/spaces/SamDNX/sci_paper_rag"><img src="https://img.shields.io/badge/Hugging%20Face-Live%20Demo-yellow?logo=huggingface&logoColor=white" alt="Live Demo"></a>
-      <a href="https://github.com/RebornX10/rebornx10.github.io/actions/workflows/ci.yml"><img src="https://github.com/RebornX10/rebornx10.github.io/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
       <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT">
       <img src="https://img.shields.io/badge/python-3.11-blue.svg" alt="Python 3.11">
     </p>
     <div class="cta">
       <a class="btn primary" href="#demo">🤗 Try Live Demo</a>
-      <a class="btn ghost" href="https://github.com/RebornX10/rebornx10.github.io">View on GitHub</a>
-      <a class="btn ghost" href="https://codespaces.new/RebornX10/rebornx10.github.io">Open in Codespaces</a>
     </div>
   </header>
 
@@ -74,7 +71,7 @@
     <p>Type a research topic and a date range; it pulls matching open-access papers from
        <a href="https://openalex.org">OpenAlex</a>, downloads their full text, and builds a
        tidy dataset (<code>authors, title, content, date, country, journal, theme</code>).
-       Then ask questions in plain language — answered by your local
+       Then ask questions in plain language — answered by your global
        <a href="https://ollama.com">Ollama</a> model, grounded in the downloaded papers with citations.</p>
   </section>
 
@@ -84,9 +81,9 @@
       <div class="feature"><h3>🔎 Topic + date search</h3><p>Query any field with an optional date bracket.</p></div>
       <div class="feature"><h3>⬇️ Parallel downloads</h3><p>Concurrent PDF fetch + text extraction with a live progress bar.</p></div>
       <div class="feature"><h3>🏷️ Auto themes</h3><p>A research-theme tag per paper, no API key required.</p></div>
-      <div class="feature"><h3>💬 Local Q&amp;A</h3><p>Answers from your own Ollama model, with source citations.</p></div>
+      <div class="feature"><h3>💬 Global Q&amp;A</h3><p>Answers from your own Ollama model, with source citations.</p></div>
       <div class="feature"><h3>🐳 Dockerised</h3><p>Bundled Ollama + app via Docker Compose.</p></div>
-      <div class="feature"><h3>☁️ Codespaces-ready</h3><p>Runs free in a GitHub Codespace.</p></div>
+      <div class="feature"><h3>🔒 Private</h3><p>Runs on your own machine — papers and questions stay with you.</p></div>
     </div>
   </section>
 
@@ -122,18 +119,13 @@
   <section>
     <h2>Run it</h2>
     <p>Fully self-contained with Docker Compose (bundles Ollama + the app):</p>
-    <pre><code>git clone https://github.com/RebornX10/rebornx10.github.io
-cd rebornx10.github.io
-docker compose up        # then open http://localhost:8000</code></pre>
-    <p class="note">This is a self-hosted application — run it locally, with Docker, or in a
-       Codespace. It needs a live Python server and Ollama, so it can't run on GitHub Pages
-       (this page is just the project's front door).</p>
+    <pre><code>docker compose up        # then open http://localhost:8000</code></pre>
+    <p class="note">This is a self-hosted application — run it with Docker, then open the app
+       in your browser. The hosted version above runs the same app.</p>
   </section>
 
   <footer>
-    Built by <strong>Samuel Adone</strong> ·
-    <a href="https://github.com/RebornX10">@RebornX10</a> ·
-    <a href="https://github.com/RebornX10/rebornx10.github.io/blob/master/LICENSE">MIT License</a>
+    Built by <a href="https://www.linkedin.com/in/samuel-adone" target="_blank" rel="noopener"><strong>Samuel Adone</strong></a> · MIT License
   </footer>
 
 </div></body></html>

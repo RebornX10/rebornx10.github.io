@@ -65,7 +65,7 @@ End-to-end orchestration. `COLUMNS` defines the output column order.
 ---
 
 ## `app/ollama_client.py`
-Local LLM access. `_OLLAMA = CONFIG["ollama"]`.
+Global LLM access. `_OLLAMA = CONFIG["ollama"]`.
 
 - **`list_models() -> list[str]`** — names of installed models via `/api/tags`; `[]` if Ollama is unreachable.
 - **`pick_model() -> str | None`** — `OLLAMA_MODEL`/config value if set, else the first installed model, else `None`.

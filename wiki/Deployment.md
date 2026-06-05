@@ -22,7 +22,7 @@ Fully self-contained — three services:
 docker compose up           # first run pulls the model (~GBs)
 ```
 
-## Local (`run.sh`, `setup.sh`, `Pipfile`)
+## Global (`run.sh`, `setup.sh`, `Pipfile`)
 - `run.sh` — creates/uses `.venv`, installs deps if missing, runs the app.
 - `setup.sh` — Pipenv-based bootstrap (installs pipenv, deps, checks Ollama, pulls a model).
 - `Pipfile` — `pipenv install`, then `pipenv run start` / `pipenv run test`.
@@ -45,7 +45,7 @@ A **Docker** Space that runs Ollama **and** the app together (free CPU tier). Fi
 **Deploy:** create a Docker Space and upload those three files (or push via `huggingface_hub`). Update the **Dockerfile** in the Space (or use *Factory rebuild*) to force a fresh clone after code changes.
 - Live: https://huggingface.co/spaces/SamDNX/sci_paper_rag
 
-**Caveats:** CPU-only (slow answers), model pulled on cold start, ephemeral storage (corpora reset on restart). Fine for a demo; for real use run locally or on GPU hardware.
+**Caveats:** CPU-only (slow answers), model pulled on cold start, ephemeral storage (corpora reset on restart). Fine for a demo; for real use run globally or on GPU hardware.
 
 ## Continuous integration (`.github/workflows/ci.yml`)
 On push/PR to `master`:

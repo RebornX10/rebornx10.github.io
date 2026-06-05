@@ -19,6 +19,8 @@ download:
   read_timeout: 40
   max_chars: 400000
   output_basename: papers
+  ram_fraction: 0.4        # fraction of available RAM the corpus may use
+  ram_per_paper_mb: 4      # rough memory budget per paper (full text + frames)
 
 ollama:
   url: http://localhost:11434

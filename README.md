@@ -1,11 +1,11 @@
-# 🔬 sci_paper_llm — Local Paper Research Assistant
+# 🔬 sci_paper_llm — Global Paper Research Assistant
 
 [![Live Demo](https://img.shields.io/badge/Hugging%20Face-Live%20Demo-yellow?logo=huggingface&logoColor=white)](https://huggingface.co/spaces/SamDNX/sci_paper_rag)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/RebornX10/rebornx10.github.io)
 [![CI](https://github.com/RebornX10/rebornx10.github.io/actions/workflows/ci.yml/badge.svg)](https://github.com/RebornX10/rebornx10.github.io/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Build a dataset of **open-access** scientific papers and ask questions about them with a **local LLM** (Ollama) — all running on your machine.
+Build a dataset of **open-access** scientific papers and ask questions about them with a **global LLM** (Ollama) — all running on your machine.
 
 **▶️ Live demo:** <https://huggingface.co/spaces/SamDNX/sci_paper_rag> · **🌐 Project page:** <https://rebornx10.github.io/>
 
@@ -16,7 +16,7 @@ Papers come from [OpenAlex](https://openalex.org) (a free, open index of ~250M s
 - 🔎 Search any topic with an optional date range
 - ⬇️ Parallel PDF download + full-text extraction with a live progress bar
 - 🏷️ Automatic `theme` tag per paper (OpenAlex topic; optional Claude tagging)
-- 💬 Ask questions answered by your local Ollama model, grounded in the papers
+- 💬 Ask questions answered by your global Ollama model, grounded in the papers
 - 🐳 Fully containerised — bundled Ollama + app via Docker Compose
 - ☁️ Runs free in GitHub Codespaces
 
@@ -52,9 +52,9 @@ docker run --rm -p 8000:8000 sci-paper-llm          # macOS / Windows
 # Linux: add  --add-host=host.docker.internal:host-gateway
 ```
 
-### Option 3 — Local (no Docker)
+### Option 3 — Global (no Docker)
 
-Requires [Ollama](https://ollama.com) running locally.
+Requires [Ollama](https://ollama.com) running globally.
 
 ```bash
 ./run.sh

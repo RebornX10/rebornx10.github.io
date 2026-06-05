@@ -1,6 +1,6 @@
-# sci_paper_llm — Local Paper Research Assistant
+# sci_paper_llm — Global Paper Research Assistant
 
-Build a dataset of **open-access** scientific papers from [OpenAlex](https://openalex.org), download their full text, and ask questions about them with a **local LLM** ([Ollama](https://ollama.com)) — all on your own machine.
+Build a dataset of **open-access** scientific papers from [OpenAlex](https://openalex.org), download their full text, and ask questions about them with a **global LLM** ([Ollama](https://ollama.com)) — all on your own machine.
 
 Each paper becomes a row with: `authors, title, content, date, country, journal, theme`. A small web UI lets you search a topic, watch the download progress, and query the corpus in natural language with cited answers.
 
@@ -18,13 +18,13 @@ Most tools that "get papers in bulk" rely on piracy. This project deliberately u
 |---|---|
 | Language | Python 3.11 (runs on 3.9+) |
 | Web framework | Django (single-file app config) |
-| LLM | Ollama (local), optional Anthropic for theme tagging |
+| LLM | Ollama (global), optional Anthropic for theme tagging |
 | Metadata | OpenAlex API |
 | PDF text | PyMuPDF |
 | Data | pandas → Parquet / CSV |
 | Tests | pytest (60 tests) |
 | Packaging | Docker, Docker Compose, Pipfile, requirements.txt |
-| Hosting | Local, Docker, GitHub Codespaces, Hugging Face Spaces |
+| Hosting | Global, Docker, GitHub Codespaces, Hugging Face Spaces |
 
 ## Where to go next
 

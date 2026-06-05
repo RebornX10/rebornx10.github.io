@@ -2,7 +2,7 @@
 
 The app exposes four HTTP endpoints (defined in `app/server.py`). They back the web UI but can be called directly. State is in-memory and single-process: a built corpus lives in `CORPUS` until the next build or a restart.
 
-Base URL examples: `http://localhost:8000` (local), `https://samdnx-sci-paper-rag.hf.space` (the demo Space).
+Base URL examples: `http://localhost:8000` (global), `https://samdnx-sci-paper-rag.hf.space` (the demo Space).
 
 ---
 
