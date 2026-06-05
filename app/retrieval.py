@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 
 import pandas as pd
@@ -7,8 +8,10 @@ from rank_bm25 import BM25Okapi
 
 from app.config import CONFIG
 
+log = logging.getLogger("retrieval")
 _R = CONFIG["retrieval"]
 _TOKEN = re.compile(r"[a-z0-9]+")
+_embed_ok = {"checked": False, "ok": False}
 
 
 def _text(v) -> str:
@@ -63,13 +66,56 @@ def _best_excerpt(text: str, q_tokens: set, size: int) -> str:
     return f"{prefix}{best.strip()}{suffix}"
 
 
+def _embeddings_enabled() -> bool:
+    mode = _R.get("rerank", "auto")
+    if mode == "off":
+        return False
+    if mode == "on":
+        return True
+    if not _embed_ok["checked"]:  # auto: enable only if the embed model is installed
+        from app.ollama_client import list_models
+        want = (_R.get("embed_model", "nomic-embed-text") or "").split(":")[0]
+        _embed_ok["ok"] = bool(want) and any(want in m for m in list_models())
+        _embed_ok["checked"] = True
+    return _embed_ok["ok"]
+
+
+def _rerank(question: str, rows: list, idxs: list) -> list:
+    """Reorder BM25 candidate indices `idxs` by embedding cosine similarity."""
+    import numpy as np
+
+    from app.ollama_client import embed
+    model = _R.get("embed_model", "nomic-embed-text")
+    texts = []
+    for i in idxs:
+        r = rows[i]
+        body = _text(r.get("abstract")) or _text(r.get("content"))
+        texts.append(f"{_text(r.get('title'))}. {body[:500]}".strip() or "_")
+    vecs = np.asarray(embed([question] + texts, model), dtype="float32")
+    q, docs = vecs[0], vecs[1:]
+    q /= (np.linalg.norm(q) + 1e-9)
+    docs /= (np.linalg.norm(docs, axis=1, keepdims=True) + 1e-9)
+    order = np.argsort(-(docs @ q))
+    return [idxs[j] for j in order]
+
+
 def build_context(df: pd.DataFrame, question: str, k: int = None, budget: int = None):
     k = k or _R["top_k"]
     budget = budget or _R["context_budget"]
     bm25, rows = _index(df)
     q_tokens = _tok(question) or ["_"]
     scores = bm25.get_scores(q_tokens)
-    order = sorted(range(len(rows)), key=lambda i: scores[i], reverse=True)[:k]
+    cand_k = max(k, _R.get("rerank_k", 30))
+    cand = sorted(range(len(rows)), key=lambda i: scores[i], reverse=True)[:cand_k]
+
+    order = cand
+    if _embeddings_enabled() and len(cand) > 1:
+        try:
+            order = _rerank(question, rows, cand)
+        except Exception as e:
+            log.warning("embedding re-rank failed, falling back to BM25: %s", e)
+            order = cand
+    order = order[:k]
 
     q_set = set(q_tokens)
     per_excerpt = max(200, budget // max(1, k))

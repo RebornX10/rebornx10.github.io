@@ -40,6 +40,9 @@ ollama:
 retrieval:
   top_k: 5
   context_budget: 9000
+  rerank: auto             # embedding re-rank of BM25 hits: auto | on | off
+  embed_model: nomic-embed-text  # Ollama embedding model (auto-used only if installed)
+  rerank_k: 30             # BM25 candidates to re-rank by embedding similarity
 
 theme:
   anthropic_model: claude-opus-4-8 # claude-haiku-4-5-20251001

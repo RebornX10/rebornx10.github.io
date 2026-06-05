@@ -45,3 +45,17 @@ def test_chat_returns_answer(monkeypatch):
     assert out == "answer"
     assert captured["json"]["model"] == "llama3.2"
     assert "context here" in captured["json"]["messages"][0]["content"]
+
+
+def test_embed_batch(monkeypatch):
+    captured = {}
+
+    def fake_post(url, json=None, timeout=None):
+        captured["url"], captured["json"] = url, json
+        return FakeResponse(json_data={"embeddings": [[1.0, 2.0], [3.0, 4.0]]})
+
+    monkeypatch.setattr(oc._SESSION, "post", fake_post)
+    out = oc.embed(["a", "b"], "nomic-embed-text")
+    assert out == [[1.0, 2.0], [3.0, 4.0]]
+    assert captured["url"].endswith("/api/embed")
+    assert captured["json"]["input"] == ["a", "b"]

@@ -44,6 +44,25 @@ def pick_model() -> Optional[str]:
     return models[0] if models else None
 
 
+def embed(texts: list, model: str) -> list:
+    """Return an embedding vector per input text. Uses the batch /api/embed,
+    falling back to the older per-text /api/embeddings if that 404s."""
+    r = _SESSION.post(f"{_OLLAMA['url']}/api/embed",
+                      json={"model": model, "input": texts},
+                      timeout=_OLLAMA["request_timeout"])
+    if r.status_code == 404:
+        out = []
+        for t in texts:
+            rr = _SESSION.post(f"{_OLLAMA['url']}/api/embeddings",
+                               json={"model": model, "prompt": t},
+                               timeout=_OLLAMA["request_timeout"])
+            rr.raise_for_status()
+            out.append(rr.json()["embedding"])
+        return out
+    r.raise_for_status()
+    return r.json()["embeddings"]
+
+
 def chat(question: str, context: str, model: str) -> str:
     log.info("Ollama chat: model=%s, context=%d chars, question=%r",
              model, len(context), question[:80])

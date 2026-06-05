@@ -38,6 +38,36 @@ def test_build_context_returns_sources_metadata():
     assert sources[0]["date"] == "2023"
 
 
+def test_rerank_reorders_by_embedding(monkeypatch):
+    import app.ollama_client as oc
+    df = pd.DataFrame([
+        {"title": "Doc A", "abstract": "alpha", "content": "alpha " * 30,
+         "authors": ["A"], "journal": "J", "date": "2023"},
+        {"title": "Doc B", "abstract": "beta", "content": "beta " * 30,
+         "authors": ["B"], "journal": "K", "date": "2022"}])
+    monkeypatch.setattr(retrieval, "_embeddings_enabled", lambda: True)
+
+    def fake_embed(texts, model):
+        # query (texts[0]) is most similar to Doc B
+        return [[1.0, 0.0] if not t.startswith("Doc A") else [0.0, 1.0] for t in texts]
+
+    monkeypatch.setattr(oc, "embed", fake_embed)
+    ctx, sources = retrieval.build_context(df, "alpha beta", k=2)
+    assert sources[0]["title"] == "Doc B"
+
+
+def test_rerank_falls_back_on_error(monkeypatch):
+    import app.ollama_client as oc
+    monkeypatch.setattr(retrieval, "_embeddings_enabled", lambda: True)
+
+    def boom(texts, model):
+        raise RuntimeError("no embedding server")
+
+    monkeypatch.setattr(oc, "embed", boom)
+    ctx, sources = retrieval.build_context(_df(), "graphene transistors")
+    assert sources[0]["title"] == "Graphene electronics"  # BM25 result still returned
+
+
 def test_build_context_respects_budget():
     ctx, sources = retrieval.build_context(_df(), "graphene", k=2, budget=200)
     assert len(ctx) <= 400
