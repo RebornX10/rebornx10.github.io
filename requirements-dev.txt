@@ -1,1 +1,2 @@
 pytest
+Pillow  # only for tools/make_icons.py (regenerating PWA icons); not needed at runtime

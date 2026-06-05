@@ -60,6 +60,46 @@ def test_static_assets_served():
     assert b"pollMetrics" in js.content
 
 
+def test_index_has_pwa_meta(monkeypatch):
+    monkeypatch.setattr(server, "pick_model", lambda: "llama3.2")
+    body = server.index(rf.get("/")).content.decode()
+    assert "/manifest.webmanifest" in body
+    assert 'name="theme-color"' in body
+    assert "apple-touch-icon" in body
+
+
+def test_manifest_served():
+    resp = server.manifest_view(rf.get("/manifest.webmanifest"))
+    assert resp.status_code == 200
+    assert resp["Content-Type"] == "application/manifest+json"
+    data = json.loads(resp.content)
+    assert data["display"] == "standalone"
+    assert any(i["sizes"] == "512x512" for i in data["icons"])
+    assert any(i.get("purpose") == "maskable" for i in data["icons"])
+
+
+def test_service_worker_served():
+    resp = server.sw_js(rf.get("/sw.js"))
+    assert resp.status_code == 200
+    assert "javascript" in resp["Content-Type"]
+    assert resp["Service-Worker-Allowed"] == "/"
+    assert b"caches" in resp.content
+
+
+def test_static_asset_serves_icon():
+    resp = server.static_asset(rf.get("/static/icon-192.png"), name="icon-192.png")
+    assert resp.status_code == 200
+    assert resp["Content-Type"] == "image/png"
+    assert resp.content[:4] == b"\x89PNG"
+
+
+def test_static_asset_blocks_traversal():
+    resp = server.static_asset(rf.get("/static/x"), name="..%2fconfig.yaml")
+    assert resp.status_code == 404
+    resp2 = server.static_asset(rf.get("/static/x"), name="nope.png")
+    assert resp2.status_code == 404
+
+
 def test_build_requires_topic():
     resp = server.build(rf.post("/build", data=json.dumps({}), content_type="application/json"))
     assert resp.status_code == 400

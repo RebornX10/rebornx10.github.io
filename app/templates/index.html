@@ -1,7 +1,16 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Global Paper Research Assistant</title>
+<meta name="description" content="Search open-access research papers and ask questions about them, powered by a local LLM.">
+<meta name="theme-color" content="#0f1117" id="themeColor">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Papers AI">
 <link rel="stylesheet" href="/static/styles.css"></head>
 <body><div class="wrap">
   <div class="topbar">
@@ -10,7 +19,10 @@
       <p class="sub">Open-access papers via OpenAlex · answers via global Ollama
          (<span class="pill">{{MODEL}}</span>)</p>
     </div>
-    <button id="theme" class="themebtn" title="Toggle light / dark">🌙</button>
+    <div class="topbtns">
+      <button id="install" class="themebtn" title="Install app" style="display:none">⬇︎ Install</button>
+      <button id="theme" class="themebtn" title="Toggle light / dark">🌙</button>
+    </div>
   </div>
   <div class="warn">{{BANNER}}</div>
 

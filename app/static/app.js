@@ -9,6 +9,8 @@ async function post(url, body) {
 function applyTheme(t){
   document.documentElement.classList.toggle('light', t === 'light');
   $('theme').textContent = t === 'light' ? '☀️' : '🌙';
+  const mc = document.getElementById('themeColor');   // keep the OS status bar in sync
+  if (mc) mc.setAttribute('content', t === 'light' ? '#f5f7fb' : '#0f1117');
 }
 let theme = localStorage.getItem('theme') || 'dark';
 applyTheme(theme);
@@ -257,3 +259,25 @@ async function pollMetrics(){
   } catch (e) {}
 }
 setInterval(pollMetrics, 1000); pollMetrics();
+
+// --- PWA: service worker + install prompt ---
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () =>
+    navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+let _installEvt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installEvt = e;
+  if ($('install')) $('install').style.display = '';
+});
+if ($('install')) $('install').onclick = async () => {
+  if (!_installEvt) return;
+  _installEvt.prompt();
+  await _installEvt.userChoice;
+  _installEvt = null;
+  $('install').style.display = 'none';
+};
+window.addEventListener('appinstalled', () => {
+  if ($('install')) $('install').style.display = 'none';
+});

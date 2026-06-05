@@ -19,6 +19,7 @@ Papers come from [OpenAlex](https://openalex.org) (a free, open index of ~250M s
 - ⬇️ Parallel PDF download + full-text extraction with a live progress bar
 - 🏷️ Automatic `theme` tag per paper (OpenAlex topic; optional Claude tagging)
 - 💬 Ask questions answered by your global Ollama model, grounded in the papers
+- 📱 Installable PWA — responsive UI, works on mobile browsers, add to home screen, offline app shell
 - 🐳 Fully containerised — bundled Ollama + app via Docker Compose
 - ☁️ Runs free in GitHub Codespaces
 

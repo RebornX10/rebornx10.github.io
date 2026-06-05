@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import mimetypes
 import sys
 import threading
 import time
@@ -14,7 +15,9 @@ from pathlib import Path
 import pandas as pd
 from django.conf import settings
 from django.core.wsgi import get_wsgi_application
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import (
+    HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse,
+)
 from django.urls import path
 
 from app.config import CONFIG
@@ -34,6 +37,8 @@ TEMPLATE = (Path(__file__).parent / "templates" / "index.html").read_text()
 _STATIC = Path(__file__).parent / "static"
 APP_CSS = (_STATIC / "styles.css").read_text()
 APP_JS = (_STATIC / "app.js").read_text()
+MANIFEST = (_STATIC / "manifest.webmanifest").read_text()
+SW_JS = (_STATIC / "sw.js").read_text()
 
 JOBS: dict[str, dict] = {}
 CORPUS: dict[str, object] = {}
@@ -235,6 +240,29 @@ def app_js(request):
     return HttpResponse(APP_JS, content_type="application/javascript")
 
 
+def manifest_view(request):
+    return HttpResponse(MANIFEST, content_type="application/manifest+json")
+
+
+def sw_js(request):
+    # Served from the root so its scope covers the whole app.
+    resp = HttpResponse(SW_JS, content_type="application/javascript")
+    resp["Service-Worker-Allowed"] = "/"
+    resp["Cache-Control"] = "no-cache"
+    return resp
+
+
+def static_asset(request, name):
+    """Serve binary static assets (PWA icons, favicon) from app/static."""
+    p = _STATIC / name
+    if "/" in name or ".." in name or not p.is_file():
+        return HttpResponseNotFound("not found")
+    ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
+    resp = HttpResponse(p.read_bytes(), content_type=ctype)
+    resp["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 if not settings.configured:
     settings.configure(
         DEBUG=True,
@@ -253,6 +281,10 @@ urlpatterns = [
     path("metrics", metrics_view),
     path("static/styles.css", app_css),
     path("static/app.js", app_js),
+    path("manifest.webmanifest", manifest_view),
+    path("sw.js", sw_js),
+    path("favicon.ico", static_asset, {"name": "favicon.png"}),
+    path("static/<str:name>", static_asset),
 ]
 
 application = get_wsgi_application()
