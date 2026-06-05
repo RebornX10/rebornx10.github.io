@@ -15,10 +15,12 @@ Papers come from [OpenAlex](https://openalex.org) (a free, open index of ~250M s
 
 ## Features
 
-- 🔎 Search any topic with an optional date range
-- ⬇️ Parallel PDF download + full-text extraction with a live progress bar
+- 🔎 Search any topic with an optional date range (cancellable, with a live progress bar + ETA)
+- ⬇️ Parallel PDF download + full-text extraction, pipelined with the OpenAlex search
 - 🏷️ Automatic `theme` tag per paper (OpenAlex topic; optional Claude tagging)
-- 💬 Ask questions answered by your global Ollama model, grounded in the papers
+- 💬 Ask questions answered by your global Ollama model — **streamed token-by-token**, rendered as Markdown with hoverable inline citations, grounded in the papers via **BM25** retrieval
+- 🗂️ Browse the corpus in a filterable table and download it as **CSV / Parquet**
+- ⚡ Identical requests load instantly from an on-disk **cache**; the last corpus **resumes** after a restart
 - 📱 Installable PWA — responsive UI, works on mobile browsers, add to home screen, offline app shell
 - 🐳 Fully containerised — bundled Ollama + app via Docker Compose
 - ☁️ Runs free in GitHub Codespaces
