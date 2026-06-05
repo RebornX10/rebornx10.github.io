@@ -28,20 +28,50 @@ const QUIPS = [
   "Following the citation trail…",
   "Brewing coffee for the CPU…",
 ];
-let _watch = null, _quip = null, _t0 = 0;
+let facts = [];   // fun facts about the current topic, fetched from Wikipedia
+let _watch = null, _quip = null, _t0 = 0, _lastMsg = '';
 const fmt = s => Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
 
-function startFun(){
+// Pull a few topic facts from Wikipedia (CORS-enabled) to spice up the wait.
+async function fetchFacts(topic){
+  facts = [];
+  if (!topic) return;
+  try {
+    const os = await (await fetch(
+      'https://en.wikipedia.org/w/api.php?action=opensearch&limit=1&format=json&origin=*&search='
+      + encodeURIComponent(topic))).json();
+    const title = os && os[1] && os[1][0];
+    if (!title) return;
+    const sum = await (await fetch(
+      'https://en.wikipedia.org/api/rest_v1/page/summary/'
+      + encodeURIComponent(title) + '?redirect=true')).json();
+    facts = ((sum.extract || '').match(/[^.!?]+[.!?]+/g) || [])
+      .map(s => '💡 ' + s.trim())
+      .filter(s => s.length > 34 && s.length < 230)
+      .slice(0, 6);
+  } catch (e) { facts = []; }
+}
+
+// Next message to show: random pick from quips + topic facts, no immediate repeat.
+function nextMsg(){
+  const pool = QUIPS.concat(facts);
+  let m;
+  do { m = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && m === _lastMsg);
+  return (_lastMsg = m);
+}
+
+function startFun(topic){
   _t0 = Date.now();
   $('fun').style.display = 'block';
   document.querySelector('.bounce').style.display = '';
   $('watch').textContent = '0:00'; $('eta').textContent = '';
+  _lastMsg = QUIPS[0];
   $('quip').style.opacity = 1; $('quip').textContent = QUIPS[0];
+  fetchFacts(topic);  // fills `facts` async; nextMsg() picks them up once ready
   _watch = setInterval(() => { $('watch').textContent = fmt((Date.now()-_t0)/1000); }, 250);
-  let i = 0;
-  _quip = setInterval(() => { i = (i+1)%QUIPS.length;
+  _quip = setInterval(() => {
     $('quip').style.opacity = 0;
-    setTimeout(() => { $('quip').textContent = QUIPS[i]; $('quip').style.opacity = 1; }, 220);
+    setTimeout(() => { $('quip').textContent = nextMsg(); $('quip').style.opacity = 1; }, 220);
   }, 3000);
 }
 function updateETA(p){
@@ -66,7 +96,7 @@ $('go').onclick = async () => {
     topic, date_from: $('from').value, date_to: $('to').value, n: +$('n').value });
   if (error || !job_id) { $('stage').textContent = error || 'Failed to start.';
                           $('go').disabled = false; return; }
-  startFun();
+  startFun(topic);
   poll(job_id);
 };
 
