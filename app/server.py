@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import sys
 import threading
 import uuid
@@ -22,8 +23,11 @@ from app.ollama_client import chat, pick_model
 from app.openalex import fetch_metadata
 from app.retrieval import build_context
 from app.system import (
-    _mem_limit_bytes, _mem_used_bytes, effective_max_papers, metrics, papers_for_target,
+    _mem_limit_bytes, _mem_used_bytes, effective_max_papers, log_resources, metrics,
+    papers_for_target, worker_count,
 )
+
+log = logging.getLogger("server")
 
 TEMPLATE = (Path(__file__).parent / "templates" / "index.html").read_text()
 _STATIC = Path(__file__).parent / "static"
@@ -43,6 +47,9 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
     baseline = _mem_used_bytes()
     total_ram = _mem_limit_bytes()
     state = {"done": 0, "oom": False}
+    log.info("Build start: topic=%r n=%d | workers=%d | baseline RAM=%.2f GB / %.2f GB | "
+             "abort if projected peak > %.0f%%",
+             topic, n, worker_count(), baseline / 1e9, total_ram / 1e9, guard * 100)
     try:
         filters = []
         if date_from:
@@ -69,31 +76,39 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
             # Abort before an OOM: the save step roughly doubles the corpus text,
             # so project the eventual peak from the growth so far.
             grown = max(0, _mem_used_bytes() - baseline)
-            if (baseline + grown * 2) / total_ram >= guard:
+            projected = (baseline + grown * 2) / total_ram
+            if projected >= guard:
+                log.warning("RAM guard tripped at %d papers: projected peak %.0f%% >= %.0f%%",
+                            done, projected * 100, guard * 100)
                 state["oom"] = True
                 return True
             return False
 
-        download_many(papers, workers=dl["workers"], progress=on_progress, stop=stop)
+        download_many(papers, workers=worker_count(), progress=on_progress, stop=stop)
         if state["oom"]:
             raise MemoryError
 
         job.update(stage="Assembling dataset…", progress=97)
+        log.info("Assembling DataFrame from %d papers…", total)
         df = pd.DataFrame([asdict(p) for p in papers])
         with _LOCK:
             CORPUS["df"] = df
             CORPUS["topic"] = topic
         save_corpus(df)
         with_text = int(df["content"].notna().sum())
+        log.info("Build done: %d papers, %d with full text, RAM now %.2f GB",
+                 total, with_text, _mem_used_bytes() / 1e9)
         job.update(stage=f"Done — {total} papers ({with_text} with full text).",
                    progress=100, done=True)
     except MemoryError:
         suggested = papers_for_target(max(1, state["done"]), baseline, target)
         at = f" at {state['done']} papers" if state["done"] else ""
+        log.warning("OOM-guard: suggesting %d papers (target %.0f%% RAM)", suggested, target)
         job.update(
             stage=f"⚠️ Ran low on memory{at}. Try about {suggested} papers to keep RAM ≤ {int(target)}%.",
             progress=100, done=True, error=True, suggested_n=suggested)
     except Exception as e:
+        log.exception("Build failed")
         job.update(stage=f"Error: {e}", progress=100, done=True, error=True)
 
 
@@ -185,15 +200,35 @@ urlpatterns = [
 application = get_wsgi_application()
 
 
-def run() -> None:
-    from django.core.management import execute_from_command_line
+def _setup_logging(level_name: str) -> None:
+    level = getattr(logging, str(level_name).upper(), logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%H:%M:%S",
+        force=True,
+    )
+    # quiet the noisy libraries / per-request server log (metrics polls every 1s)
+    for noisy in ("urllib3", "requests", "django.server", "django.request", "django"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
+
+def run() -> None:
     import os
 
+    from django.core.management import execute_from_command_line
+
+    _setup_logging(CONFIG["server"].get("log_level", "INFO"))
     host = CONFIG["server"]["host"]
     port = CONFIG["server"]["port"]
     url = f"http://{host}:{port}"
+
+    log.info("=== Global Paper Research Assistant — starting ===")
+    log_resources()
+    log.info("Ollama: url=%s, model=%s", CONFIG["ollama"]["url"], pick_model() or "(none installed)")
+    log.info("OpenAlex: mailto=%s, per_page=%d", CONFIG["openalex"]["mailto"], CONFIG["openalex"]["per_page"])
+    log.info("Serving on %s", url)
+
     if CONFIG["server"]["open_browser"] and "RUN_MAIN" not in os.environ:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
-    print(f"\n  Local Paper Research Assistant → {url}\n")
     execute_from_command_line([sys.argv[0], "runserver", f"{host}:{port}", "--noreload"])

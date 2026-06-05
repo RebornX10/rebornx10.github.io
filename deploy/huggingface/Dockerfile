@@ -15,7 +15,6 @@ ENV HOME=/home/user \
     OLLAMA_URL=http://localhost:11434 \
     OLLAMA_MODEL=qwen2.5:0.5b \
     OUTPUT_BASENAME=/tmp/papers \
-    WORKERS=6 \
     OMP_NUM_THREADS=2 \
     OLLAMA_NUM_PARALLEL=1
 

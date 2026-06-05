@@ -26,6 +26,26 @@ def test_papers_for_target_measured():
     assert n >= 1
 
 
+def test_available_cpus_positive():
+    assert system.available_cpus() >= 1
+
+
+def test_worker_count_explicit(monkeypatch):
+    monkeypatch.setitem(system.CONFIG["download"], "workers", 7)
+    assert system.worker_count() == 7
+
+
+def test_worker_count_auto_from_threads(monkeypatch):
+    monkeypatch.setitem(system.CONFIG["download"], "workers", None)
+    monkeypatch.setitem(system.CONFIG["download"], "thread_fraction", 0.5)
+    monkeypatch.setattr(system, "available_cpus", lambda: 10)
+    assert system.worker_count() == 5
+
+
+def test_log_resources_runs():
+    system.log_resources()  # must not raise
+
+
 def test_metrics_keys_and_types():
     m = system.metrics()
     for k in ("cpu", "ram", "net_kbps", "ram_used_mb", "ram_total_mb"):

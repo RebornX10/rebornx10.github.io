@@ -25,7 +25,7 @@ def build_corpus(
     extra_filters: Optional[str] = None,
     with_fulltext: bool = True,
     with_theme: bool = False,
-    workers: int = CONFIG["download"]["workers"],
+    workers: Optional[int] = None,
 ) -> pd.DataFrame:
     client = None
     if with_theme:

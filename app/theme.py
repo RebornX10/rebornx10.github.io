@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from app.config import CONFIG
 from app.models import Paper
+
+log = logging.getLogger("theme")
 
 SYSTEM = (
     "You are a scientific librarian. Given a paper's title and abstract, reply with "
@@ -13,6 +17,8 @@ def tag_theme(paper: Paper, client) -> Paper:
     basis = paper.abstract or (paper.content[:2000] if paper.content else "")
     if not paper.title and not basis:
         return paper
+    log.info("Claude theme tag: model=%s, paper=%r", CONFIG["theme"]["anthropic_model"],
+             (paper.title or "")[:60])
     msg = client.messages.create(
         model=CONFIG["theme"]["anthropic_model"],
         max_tokens=20,

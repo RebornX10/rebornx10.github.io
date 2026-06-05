@@ -2,6 +2,7 @@ server:
   host: 127.0.0.1
   port: 8000
   open_browser: true
+  log_level: INFO          # DEBUG for even more detail
 
 openalex:
   mailto: kiki.brettl@gmail.com
@@ -12,7 +13,8 @@ openalex:
   max_papers_cap: 200000   # hard ceiling; the RAM-based cap is usually the real limit
 
 download:
-  workers: 32              # parallel download/parse workers (I/O-bound; can exceed core count)
+  workers: null            # null = auto: thread_fraction of available CPU threads
+  thread_fraction: 0.8     # share of available CPU threads to allocate as workers
   paper_deadline_s: 30     # per-paper time budget (lower = faster, drops slow stragglers)
   max_pdf_bytes: 80000000  # max PDF size read into memory (the per-download cache)
   connect_timeout: 5

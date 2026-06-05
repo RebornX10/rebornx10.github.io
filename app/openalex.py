@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Iterator, Optional
 
 from app.config import CONFIG
 from app.http import SESSION
 from app.models import Paper
+
+log = logging.getLogger("openalex")
 
 API = "https://api.openalex.org/works"
 
@@ -84,12 +87,18 @@ def fetch_metadata(
     if search:
         params["search"] = search
 
+    log.info("OpenAlex query: filter=%s search=%s want=%d papers",
+             params["filter"], search or "(all)", n)
     yielded = 0
+    page = 0
     while yielded < n:
+        page += 1
         r = SESSION.get(API, params=params, timeout=60)
         r.raise_for_status()
         data = r.json()
         results = data.get("results", [])
+        log.info("OpenAlex page %d: %d results (cursor=%s), %d/%d yielded",
+                 page, len(results), str(params["cursor"])[:12], yielded, n)
         if not results:
             return
         for w in results:

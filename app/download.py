@@ -11,6 +11,7 @@ import fitz
 from app.config import CONFIG
 from app.http import BROWSER_UA, SESSION
 from app.models import Paper
+from app.system import worker_count
 
 log = logging.getLogger("download")
 
@@ -51,6 +52,7 @@ def download_fulltext(
         if time.monotonic() > deadline:
             break
         try:
+            log.info("GET pdf: %s", url)
             data = _fetch_pdf_bytes(url, deadline)
             if not data:
                 continue
@@ -60,6 +62,7 @@ def download_fulltext(
             if text:
                 paper.content = text
                 paper.pdf_url = url
+                log.info("  -> %d chars from %s", len(text), url)
                 return paper
         except Exception as e:
             log.warning("download failed for %s: %s", url, e)
@@ -69,13 +72,16 @@ def download_fulltext(
 def download_many(
     papers: list[Paper],
     *,
-    workers: int = _DL["workers"],
+    workers: Optional[int] = None,
     progress: Optional[Callable[[int, int, Paper], None]] = None,
     stop: Optional[Callable[[int], bool]] = None,
 ) -> list[Paper]:
     total = len(papers)
     if total == 0:
         return papers
+    if workers is None:
+        workers = worker_count()
+    log.info("Downloading %d papers with %d parallel workers", total, workers)
     done = 0
     ex = ThreadPoolExecutor(max_workers=workers)
     futures = {ex.submit(download_fulltext, p): p for p in papers}

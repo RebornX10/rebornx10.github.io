@@ -40,4 +40,6 @@ def test_load_applies_env_override(monkeypatch, tmp_path):
 def test_load_without_env(tmp_path, monkeypatch):
     monkeypatch.delenv("WORKERS", raising=False)
     data = config.load()
-    assert isinstance(data["download"]["workers"], int)
+    # workers defaults to null (auto from CPU threads); fraction drives the calc
+    assert data["download"]["workers"] is None or isinstance(data["download"]["workers"], int)
+    assert isinstance(data["download"]["thread_fraction"], (int, float))
