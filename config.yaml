@@ -9,18 +9,18 @@ openalex:
   default_search: null
   default_filters: "from_publication_date:2022-01-01"
   max_papers: 25
-  max_papers_cap: 100000   # hard ceiling; the RAM-based cap is usually the real limit
+  max_papers_cap: 200000   # hard ceiling; the RAM-based cap is usually the real limit
 
 download:
   workers: 32              # parallel download/parse workers (I/O-bound; can exceed core count)
   paper_deadline_s: 30     # per-paper time budget (lower = faster, drops slow stragglers)
-  max_pdf_bytes: 30000000
+  max_pdf_bytes: 80000000  # max PDF size read into memory (the per-download cache)
   connect_timeout: 5
   read_timeout: 40
-  max_chars: 400000
+  max_chars: 2000000       # full text kept per paper in memory (the per-paper cache)
   output_basename: papers
-  ram_fraction: 0.8        # fraction of available RAM the corpus may use (peak)
-  ram_per_paper_mb: 0.15   # measured peak memory per paper (runtime guard is the real safety net)
+  ram_fraction: 0.85       # fraction of available RAM the corpus may use (peak)
+  ram_per_paper_mb: 0.1    # est. peak memory per paper (runtime guard is the real safety net)
   ram_guard_pct: 85        # abort a build if projected peak RAM would exceed this
   ram_target_pct: 80       # suggested cap aims to keep peak RAM at/below this
 
