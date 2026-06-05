@@ -1,3 +1,5 @@
+Disclaimer: Claude has been used mainly for the UI, Django, some tests and the wiki
+
 # 🔬 sci_paper_llm — Global Paper Research Assistant
 
 [![Live Demo](https://img.shields.io/badge/Hugging%20Face-Live%20Demo-yellow?logo=huggingface&logoColor=white)](https://huggingface.co/spaces/SamDNX/sci_paper_rag)
