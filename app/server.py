@@ -21,7 +21,9 @@ from app.download import download_many
 from app.ollama_client import chat, pick_model
 from app.openalex import fetch_metadata
 from app.retrieval import build_context
-from app.system import effective_max_papers, metrics
+from app.system import (
+    _mem_limit_bytes, _mem_used_bytes, effective_max_papers, metrics, papers_for_target,
+)
 
 TEMPLATE = (Path(__file__).parent / "templates" / "index.html").read_text()
 
@@ -32,6 +34,12 @@ _LOCK = threading.Lock()
 
 def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> None:
     job = JOBS[job_id]
+    dl = CONFIG["download"]
+    guard = dl.get("ram_guard_pct", 85) / 100.0
+    target = dl.get("ram_target_pct", 80)
+    baseline = _mem_used_bytes()
+    total_ram = _mem_limit_bytes()
+    state = {"done": 0, "oom": False}
     try:
         filters = []
         if date_from:
@@ -50,10 +58,22 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
         total = len(papers)
 
         def on_progress(done, total, paper):
+            state["done"] = done
             job.update(stage=f"Downloaded {done}/{total}: {(paper.title or '')[:55]}…",
                        progress=5 + int(90 * done / total))
 
-        download_many(papers, workers=CONFIG["download"]["workers"], progress=on_progress)
+        def stop(done):
+            # Abort before an OOM: the save step roughly doubles the corpus text,
+            # so project the eventual peak from the growth so far.
+            grown = max(0, _mem_used_bytes() - baseline)
+            if (baseline + grown * 2) / total_ram >= guard:
+                state["oom"] = True
+                return True
+            return False
+
+        download_many(papers, workers=dl["workers"], progress=on_progress, stop=stop)
+        if state["oom"]:
+            raise MemoryError
 
         job.update(stage="Assembling dataset…", progress=97)
         df = pd.DataFrame([asdict(p) for p in papers])
@@ -64,6 +84,12 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
         with_text = int(df["content"].notna().sum())
         job.update(stage=f"Done — {total} papers ({with_text} with full text).",
                    progress=100, done=True)
+    except MemoryError:
+        suggested = papers_for_target(max(1, state["done"]), baseline, target)
+        at = f" at {state['done']} papers" if state["done"] else ""
+        job.update(
+            stage=f"⚠️ Ran low on memory{at}. Try about {suggested} papers to keep RAM ≤ {int(target)}%.",
+            progress=100, done=True, error=True, suggested_n=suggested)
     except Exception as e:
         job.update(stage=f"Error: {e}", progress=100, done=True, error=True)
 

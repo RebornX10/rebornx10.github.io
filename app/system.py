@@ -51,6 +51,23 @@ def effective_max_papers() -> int:
     return min(CONFIG["openalex"]["max_papers_cap"], ram_paper_cap())
 
 
+def papers_for_target(done: int, baseline_used: int,
+                      target_pct: float = 80.0, peak_factor: float = 2.0) -> int:
+    """Estimate how many papers keep peak RAM <= target_pct, using the memory
+    actually consumed so far (`done` papers since `baseline_used`). The save step
+    roughly duplicates the corpus text, hence `peak_factor`. Falls back to the
+    static cap when there's no measurement yet."""
+    total = _mem_limit_bytes()
+    grown = max(0, _mem_used_bytes() - baseline_used)
+    if done <= 0 or grown <= 0:
+        return effective_max_papers()
+    per_paper = grown / done
+    budget = total * (target_pct / 100.0) - baseline_used
+    if budget <= 0:
+        return max(1, done // 2)
+    return max(1, int(budget / (per_paper * peak_factor)))
+
+
 _net = {"t": None, "bytes": None}
 
 

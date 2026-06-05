@@ -15,6 +15,17 @@ def test_mem_limit_positive():
     assert system._mem_limit_bytes() > 0
 
 
+def test_papers_for_target_fallback():
+    # no measurement yet -> falls back to the static cap
+    assert system.papers_for_target(0, 0) == system.effective_max_papers()
+
+
+def test_papers_for_target_measured():
+    # baseline of 0 means all current usage counts as "grown" -> a finite estimate
+    n = system.papers_for_target(done=100, baseline_used=0, target_pct=80)
+    assert n >= 1
+
+
 def test_metrics_keys_and_types():
     m = system.metrics()
     for k in ("cpu", "ram", "net_kbps", "ram_used_mb", "ram_total_mb"):

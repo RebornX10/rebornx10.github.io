@@ -97,6 +97,22 @@ def test_metrics_endpoint():
         assert k in data
 
 
+def test_build_handles_oom(monkeypatch):
+    monkeypatch.setattr(server, "fetch_metadata",
+                        lambda *a, **k: [Paper(openalex_id="W", doi=None, title="t")])
+
+    def boom(*a, **k):
+        raise MemoryError()
+
+    monkeypatch.setattr(server, "download_many", boom)
+    resp = server.build(rf.post("/build", data=json.dumps({"topic": "x", "n": 5}),
+                                content_type="application/json"))
+    done = _wait_done(json.loads(resp.content)["job_id"])
+    assert done["error"] is True
+    assert "memory" in done["stage"].lower()
+    assert done.get("suggested_n", 0) >= 1
+
+
 def test_status_unknown_job():
     assert server.status(rf.get("/status?job=nope")).status_code == 400
 

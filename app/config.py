@@ -20,6 +20,8 @@ _ENV_OVERRIDES = {
     "OUTPUT_BASENAME": (("download", "output_basename"), str),
     "RAM_FRACTION": (("download", "ram_fraction"), float),
     "RAM_PER_PAPER_MB": (("download", "ram_per_paper_mb"), float),
+    "RAM_GUARD_PCT": (("download", "ram_guard_pct"), float),
+    "RAM_TARGET_PCT": (("download", "ram_target_pct"), float),
     "OLLAMA_URL": (("ollama", "url"), str),
     "OLLAMA_MODEL": (("ollama", "model"), str),
 }

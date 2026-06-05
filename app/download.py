@@ -71,13 +71,15 @@ def download_many(
     *,
     workers: int = _DL["workers"],
     progress: Optional[Callable[[int, int, Paper], None]] = None,
+    stop: Optional[Callable[[int], bool]] = None,
 ) -> list[Paper]:
     total = len(papers)
     if total == 0:
         return papers
     done = 0
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = {ex.submit(download_fulltext, p): p for p in papers}
+    ex = ThreadPoolExecutor(max_workers=workers)
+    futures = {ex.submit(download_fulltext, p): p for p in papers}
+    try:
         for fut in as_completed(futures):
             done += 1
             paper = futures[fut]
@@ -87,4 +89,8 @@ def download_many(
                 log.warning("worker failed for %s: %s", paper.title, e)
             if progress:
                 progress(done, total, paper)
+            if stop and stop(done):
+                break
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
     return papers

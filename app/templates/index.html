@@ -207,6 +207,7 @@ function poll(job) {
     if (s.done) {
       clearInterval(t); $('go').disabled = false; stopFun(!s.error);
       if (!s.error) { $('qa').classList.remove('disabled'); $('q').focus(); }
+      else if (s.suggested_n) { $('n').value = s.suggested_n; $('n').focus(); }
     }
   }, 500);
 }
