@@ -29,8 +29,14 @@ const QUIPS = [
   "Brewing coffee for the CPU…",
 ];
 let facts = [];   // fun facts about the current topic, fetched from Wikipedia
-let _watch = null, _quip = null, _t0 = 0, _lastMsg = '';
+let _watch = null, _quip = null, _t0 = 0, _lastMsg = '', _running = false;
 const fmt = s => Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+
+function showQuip(text){
+  _lastMsg = text;
+  $('quip').style.opacity = 0;
+  setTimeout(() => { $('quip').textContent = text; $('quip').style.opacity = 1; }, 220);
+}
 
 // Pull a few topic facts from Wikipedia (CORS-enabled) to spice up the wait.
 async function fetchFacts(topic){
@@ -49,10 +55,11 @@ async function fetchFacts(topic){
       .map(s => '💡 ' + s.trim())
       .filter(s => s.length > 34 && s.length < 230)
       .slice(0, 6);
+    if (_running && facts.length) showQuip(facts[0]);  // show a fact as soon as it's ready
   } catch (e) { facts = []; }
 }
 
-// Next message to show: random pick from quips + topic facts, no immediate repeat.
+// Next message: random pick from quips + topic facts, no immediate repeat.
 function nextMsg(){
   const pool = QUIPS.concat(facts);
   let m;
@@ -62,17 +69,15 @@ function nextMsg(){
 
 function startFun(topic){
   _t0 = Date.now();
+  _running = true;
   $('fun').style.display = 'block';
   document.querySelector('.bounce').style.display = '';
   $('watch').textContent = '0:00'; $('eta').textContent = '';
   _lastMsg = QUIPS[0];
   $('quip').style.opacity = 1; $('quip').textContent = QUIPS[0];
-  fetchFacts(topic);  // fills `facts` async; nextMsg() picks them up once ready
+  fetchFacts(topic);  // fills `facts`; shows one as soon as it's fetched
   _watch = setInterval(() => { $('watch').textContent = fmt((Date.now()-_t0)/1000); }, 250);
-  _quip = setInterval(() => {
-    $('quip').style.opacity = 0;
-    setTimeout(() => { $('quip').textContent = nextMsg(); $('quip').style.opacity = 1; }, 220);
-  }, 3000);
+  _quip = setInterval(() => showQuip(nextMsg()), 3000);
 }
 function updateETA(p){
   const el = (Date.now()-_t0)/1000;
@@ -80,6 +85,7 @@ function updateETA(p){
   else if (p < 5) $('eta').textContent = 'estimating…';
 }
 function stopFun(ok){
+  _running = false;
   clearInterval(_watch); clearInterval(_quip);
   document.querySelector('.bounce').style.display = 'none';
   $('eta').textContent = '';
