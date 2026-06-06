@@ -351,6 +351,19 @@ def test_ask_stream_streams_tokens(monkeypatch):
     assert '"done": true' in body
 
 
+def test_ask_stream_emits_verification(monkeypatch):
+    server.CORPUS["df"] = pd.DataFrame([
+        {"title": "T", "abstract": "a", "content": "c", "authors": ["A"], "journal": "J", "date": "2023"}])
+    monkeypatch.setattr(server, "pick_model", lambda: "m")
+    monkeypatch.setattr(server, "chat_stream", lambda q, c, m: iter(["hello"]))
+    monkeypatch.setattr(server, "verify_claims", lambda a, c, m: "All claims supported.")
+    monkeypatch.setitem(server.CONFIG["retrieval"], "verify", True)
+    resp = server.ask_stream(rf.post("/ask_stream", data=json.dumps({"question": "q"}),
+                                     content_type="application/json"))
+    body = b"".join(resp.streaming_content).decode()
+    assert '"verify"' in body and "All claims supported" in body
+
+
 def test_ask_stream_without_corpus():
     server.CORPUS.clear()
     resp = server.ask_stream(rf.post("/ask_stream", data=json.dumps({"question": "q"}),

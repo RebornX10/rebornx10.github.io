@@ -30,6 +30,8 @@ _ENV_OVERRIDES = {
     "RERANK": (("retrieval", "rerank"), str),
     "EMBED_MODEL": (("retrieval", "embed_model"), str),
     "RERANK_K": (("retrieval", "rerank_k"), int),
+    "MULTI_QUERY": (("retrieval", "multi_query"), _as_bool),
+    "VERIFY": (("retrieval", "verify"), _as_bool),
 }
 
 

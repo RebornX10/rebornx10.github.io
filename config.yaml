@@ -48,6 +48,7 @@ retrieval:
   chunk_overlap: 200       # overlap between consecutive chunks
   multi_query: false       # expand the question into variants (LLM) and fuse results
   mq_count: 3              # number of query variants when multi_query is on
+  verify: false            # after answering, fact-check the answer against the sources (LLM)
 
 theme:
   anthropic_model: claude-opus-4-8 # claude-haiku-4-5-20251001

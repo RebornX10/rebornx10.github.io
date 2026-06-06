@@ -1,0 +1,12 @@
+[
+  {
+    "question": "How effective is the RTS,S malaria vaccine?",
+    "expect_any": ["efficacy", "vaccine"],
+    "expect_source_contains": "malaria"
+  },
+  {
+    "question": "What reduces malaria transmission?",
+    "expect_any": ["net", "insecticide", "transmission"],
+    "expect_source_contains": "net"
+  }
+]

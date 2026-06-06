@@ -30,7 +30,7 @@ from app.corpus import (
     cache_key, list_cached, load_from_cache, load_with_topic, save_corpus, save_to_cache,
 )
 from app.download import download_fulltext
-from app.ollama_client import chat, chat_stream, pick_model
+from app.ollama_client import chat, chat_stream, pick_model, verify_claims
 from app.openalex import fetch_metadata
 from app.retrieval import build_context
 from app.system import (
@@ -284,8 +284,17 @@ def ask_stream(request):
     def gen():
         yield _sse({"sources": sources, "model": model})
         try:
+            parts = []
             for tok in chat_stream(question, context, model):
+                parts.append(tok)
                 yield _sse({"delta": tok})
+            if CONFIG["retrieval"].get("verify") and parts:
+                try:
+                    note = verify_claims("".join(parts), context, model)
+                    if note:
+                        yield _sse({"verify": note})
+                except Exception as e:
+                    log.warning("verification failed: %s", e)
             yield _sse({"done": True})
         except Exception as e:
             log.warning("ask_stream failed: %s", e)

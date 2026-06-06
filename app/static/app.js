@@ -355,10 +355,11 @@ $('ask').onclick = async () => {
   _ghost = ''; $('ghost').innerHTML = '';
   _streaming = false; _sources = [];
   $('ask').disabled = true; $('answer').style.display = 'none'; $('answer').textContent = '';
-  $('sources').textContent = ''; $('abarwrap').style.display = 'block'; $('abar').style.opacity = '.8';
+  $('sources').textContent = ''; $('verify').style.display = 'none'; $('verify').textContent = '';
+  $('abarwrap').style.display = 'block'; $('abar').style.opacity = '.8';
   startAskClock();
 
-  let answer = '', error = null;
+  let answer = '', error = null, verifyNote = '';
   try {
     const resp = await fetch('/ask_stream', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) });
@@ -382,6 +383,7 @@ $('ask').onclick = async () => {
           let evt; try { evt = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
           if (evt.sources) { _sources = evt.sources || []; }
           else if (evt.delta != null) { if (!_streaming) beginStream(); answer += evt.delta; $('answer').textContent = answer; }
+          else if (evt.verify) { verifyNote = evt.verify; }
           else if (evt.error) { error = evt.error; }
         }
       }
@@ -395,6 +397,11 @@ $('ask').onclick = async () => {
   $('astage').textContent = 'Answered in ' + fmt((Date.now() - _askT0) / 1000) + '.';
   $('answer').style.display = 'block';
   renderAnswer(answer);             // re-render the finished text as Markdown + citations
+  if (verifyNote) {
+    const ok = /^all claims supported/i.test(verifyNote.trim());
+    $('verify').textContent = (ok ? '✓ ' : '⚠ Verification — ') + verifyNote;
+    $('verify').style.display = '';
+  }
   $('sources').innerHTML = _sources.length
     ? 'Sources: ' + _sources.map((s, i) =>
         `<span class="src-chip" data-i="${i}">“${esc(s.title || 'Untitled')}”</span>`).join('  ·  ')

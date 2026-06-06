@@ -99,6 +99,23 @@ def chat(question: str, context: str, model: str) -> str:
     return answer
 
 
+def verify_claims(answer: str, context: str, model: str) -> str:
+    """Fact-check an answer against the source excerpts; return a short note."""
+    prompt = (
+        "You are a fact-checker. Given the SOURCES and an ANSWER, list any claims in the "
+        "answer that are NOT supported by the sources, as short bullet points. If every claim "
+        "is supported, reply with exactly: All claims supported.\n\n"
+        f"SOURCES:\n{context}\n\nANSWER:\n{answer}"
+    )
+    r = _SESSION.post(
+        f"{_OLLAMA['url']}/api/chat",
+        json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False},
+        timeout=_OLLAMA["request_timeout"],
+    )
+    r.raise_for_status()
+    return r.json()["message"]["content"].strip()
+
+
 def chat_stream(question: str, context: str, model: str) -> Iterator[str]:
     """Yield answer text chunks as Ollama generates them (stream=True)."""
     log.info("Ollama chat (stream): model=%s, context=%d chars, question=%r",
