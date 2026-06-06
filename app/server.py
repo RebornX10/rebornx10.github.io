@@ -31,16 +31,19 @@ from app.corpus import (
     cache_key, list_cached, load_from_cache, load_with_topic, save_corpus, save_to_cache,
 )
 from app.arxiv import fetch_metadata as arxiv_fetch
+from app.crossref import fetch_metadata as crossref_fetch
+from app.pubmed import fetch_metadata as pubmed_fetch
 from app.download import download_fulltext
 from app.ollama_client import chat, chat_stream, pick_model, verify_claims
 from app.openalex import fetch_metadata
 
-SOURCES = ("openalex", "arxiv")
+SOURCES = ("openalex", "arxiv", "pubmed", "crossref")
+_FETCHERS = {"arxiv": arxiv_fetch, "pubmed": pubmed_fetch, "crossref": crossref_fetch}
 
 
 def _fetcher(source):
     # openalex resolves to the module-global name so tests can monkeypatch it
-    return arxiv_fetch if source == "arxiv" else fetch_metadata
+    return _FETCHERS.get(source, fetch_metadata)
 from app.retrieval import build_context
 from app.system import (
     _mem_limit_bytes, _mem_used_bytes, available_cpus, download_workers, effective_max_papers,

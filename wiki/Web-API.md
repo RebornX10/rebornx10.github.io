@@ -25,8 +25,8 @@ Start a corpus build. Runs asynchronously in a background thread and returns imm
 ```
 - `topic` (required) — free-text query.
 - `n` — number of papers; clamped to `1..max_papers_cap`.
-- `date_from` / `date_to` — optional; become OpenAlex `from_publication_date` / `to_publication_date` filters (ignored by arXiv).
-- `source` — `openalex` (default) or `arxiv`.
+- `date_from` / `date_to` — optional; become OpenAlex `from_publication_date` / `to_publication_date` filters (applied by OpenAlex only; the other sources ignore them).
+- `source` — `openalex` (default), `arxiv`, `pubmed` (PubMed Central open-access subset), or `crossref`. Unknown values fall back to `openalex`. arXiv/PubMed/Crossref keep only items that expose an open PDF.
 
 **Response:** `{"job_id": "<hex>"}` (or `400` if `topic` is missing).
 

@@ -39,6 +39,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 
 ### Search & ingestion
 - [x] Free-text topic search with optional date range (OpenAlex `is_oa` + `has_fulltext`)
+- [x] Four sources behind a selector: **OpenAlex, arXiv, PubMed Central, Crossref** (each open-access PDFs only)
 - [x] Parallel PDF download, **pipelined** with the metadata search
 - [x] Bounded, crash-safe PDF parsing (per-paper deadline, skips corrupt pages, silenced MuPDF errors)
 - [x] Optional **process-pool parsing** for a hard timeout / crash isolation (config-gated)
@@ -103,7 +104,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - Observability counters at `/stats`
 
 **Sources**
-- OpenAlex + arXiv adapters behind a Source selector
+- OpenAlex + arXiv + PubMed Central + Crossref adapters behind a Source selector (each filters to open-access PDFs)
 
 **Performance & robustness**
 - Download speed optimization (I/O oversubscription, deadlines, chunking) — ~6×
@@ -166,7 +167,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - Background/queued builds + multiple concurrent corpora
 
 ### Milestone D — Sources & coverage
-- More sources beyond OpenAlex (arXiv, PubMed, Crossref, Unpaywall)
+- More sources beyond OpenAlex (arXiv ✅, PubMed Central ✅, Crossref ✅; Unpaywall next)
 - Better PDF parsing (tables, figures, references) + OCR fallback
 - De-duplication and metadata enrichment
 
@@ -193,7 +194,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 | Persistent embedding cache | Avoid re-embedding per question/corpus | M |
 | Claim verification / citation checker | Reduce hallucination | M |
 | Literature-review report generator | High-value output artifact | M |
-| arXiv / PubMed / Crossref ingestion | Broaden coverage | L |
+| ~~arXiv / PubMed / Crossref ingestion~~ ✅ | Broaden coverage | L |
 | Streaming-to-disk builds | Remove RAM ceiling for huge corpora | L |
 | RAG eval harness | Catch answer-quality regressions | M |
 | Export to BibTeX / Zotero / Notion | Researcher workflows | S–M |
@@ -216,7 +217,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - [x] RAG evaluation harness (`tools/rag_eval.py` + golden set + scoring)
 
 **Later** — done / partial
-- [x] arXiv source adapter + Source selector  · ⬜ PubMed / Crossref adapters (next)
+- [x] arXiv + **PubMed Central** + **Crossref** source adapters + Source selector (cache-key namespaced per source)
 - [x] Incremental Parquet checkpoints during build (`checkpoint_every`)  · ⬜ full streaming-to-disk rearchitecture
 - [x] Export to BibTeX + RIS (Zotero/EndNote); Notion snapshot is this file
 - [x] Saved/shareable corpora via `?corpus=<key>` deep-link + Share button
@@ -243,7 +244,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 | **Citation / Verification Agent** | Check each claim against retrieved sources; flag unsupported | answer + sources → verified answer | local LLM | 🟡 (verify pass, config-gated) |
 | **Literature-Review Agent** | Produce structured reviews / comparison tables | corpus + outline → report | local LLM | ⬜ |
 | **Data-Quality Agent** | De-dup, metadata cleanup, language/quality filters | corpus → cleaned corpus | rules + small LLM | ⬜ |
-| **Ingestion / Crawler Agent** | Pull from multiple sources, normalize, resolve PDFs | topic → papers | rules + APIs | 🟡 (OpenAlex + arXiv) |
+| **Ingestion / Crawler Agent** | Pull from multiple sources, normalize, resolve PDFs | topic → papers | rules + APIs | 🟡 (OpenAlex + arXiv + PubMed Central + Crossref) |
 | **Evaluation Agent** | Score answer quality / retrieval hit-rate; regression gate | Q/A set → metrics | LLM-as-judge | 🟡 (rag_eval harness) |
 
 **Shared infrastructure the agents will need**

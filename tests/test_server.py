@@ -157,6 +157,17 @@ def test_build_defaults_unknown_source_to_openalex(monkeypatch):
     assert captured["source"] == "openalex"
 
 
+def test_fetcher_routes_each_source():
+    from app import arxiv, crossref, pubmed
+    assert server._fetcher("arxiv") is arxiv.fetch_metadata
+    assert server._fetcher("pubmed") is pubmed.fetch_metadata
+    assert server._fetcher("crossref") is crossref.fetch_metadata
+    # openalex (and anything unknown) falls back to the module-global fetch_metadata
+    assert server._fetcher("openalex") is server.fetch_metadata
+    assert server._fetcher("bogus") is server.fetch_metadata
+    assert {"openalex", "arxiv", "pubmed", "crossref"} <= set(server.SOURCES)
+
+
 def test_build_handles_no_results(monkeypatch):
     monkeypatch.setattr(server, "fetch_metadata", lambda *a, **k: [])
     resp = server.build(rf.post("/build", data=json.dumps({"topic": "x"}),

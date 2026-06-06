@@ -15,7 +15,7 @@ Papers come from [OpenAlex](https://openalex.org) (a free, open index of ~250M s
 
 ## Features
 
-- 🔎 Search any topic from **OpenAlex or arXiv**, with an optional date range (cancellable, live progress + ETA)
+- 🔎 Search any topic from **OpenAlex, arXiv, PubMed Central, or Crossref**, with an optional date range (cancellable, live progress + ETA)
 - ⬇️ Parallel PDF download + full-text extraction, pipelined with the search; incremental Parquet checkpoints
 - 🏷️ Automatic `theme` tag per paper (OpenAlex topic; optional Claude tagging)
 - 💬 Ask questions answered by your global Ollama model — **streamed token-by-token**, Markdown with hoverable inline citations, grounded via **chunk-level BM25** retrieval (optional **embedding re-rank** + **multi-query fusion**), with an optional **claim-verification** pass
