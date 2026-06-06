@@ -531,14 +531,38 @@ function updateMetricsUI(m){
   }
 }
 
+const fmtDur = s => {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h) return h + 'h ' + m + 'm';
+  if (m) return m + 'm ' + sec + 's';
+  return sec + 's';
+};
+const fmtMs = ms => ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+
+function updateStatsUI(s){
+  $('stUptime').textContent = fmtDur(s.uptime_s);
+  $('stBuilds').textContent = s.builds;
+  $('stPapers').textContent = s.papers.toLocaleString()
+    + (s.with_text ? ' (' + s.with_text.toLocaleString() + ' full text)' : '');
+  $('stQuestions').textContent = s.questions;
+  $('stLastBuild').textContent = s.last_build_s ? s.last_build_s.toFixed(1) + ' s' : '–';
+  $('stRetrieval').textContent = s.avg_retrieval_ms ? fmtMs(s.avg_retrieval_ms) : '–';
+  $('stAnswer').textContent = s.avg_answer_ms ? fmtMs(s.avg_answer_ms) : '–';
+}
+
 // Push updates over a single SSE stream (metrics + the active build's status),
 // falling back to polling if EventSource never connects (e.g. a buffering proxy).
 let _es = null, _esGotData = false, _sseDead = !('EventSource' in window);
-let _pmTimer = null, _psTimer = null, _curJob = null;
+let _pmTimer = null, _psTimer = null, _stTimer = null, _curJob = null;
 
 function pollMetricsOnce(){
   fetch('/metrics').then(r => r.json())
     .then(m => { if (!document.hidden) updateMetricsUI(m); }).catch(() => {});
+}
+function pollStatsOnce(){
+  fetch('/stats').then(r => r.json())
+    .then(s => { if (!document.hidden) updateStatsUI(s); }).catch(() => {});
 }
 function startStatusPoll(){
   if (_psTimer) { clearInterval(_psTimer); _psTimer = null; }
@@ -550,6 +574,7 @@ function startStatusPoll(){
 }
 function startPollingFallback(){
   if (!_pmTimer) { _pmTimer = setInterval(pollMetricsOnce, 1000); pollMetricsOnce(); }
+  if (!_stTimer) { _stTimer = setInterval(pollStatsOnce, 5000); pollStatsOnce(); }
   startStatusPoll();
 }
 function connect(jobId){
@@ -565,6 +590,7 @@ function connect(jobId){
     _esGotData = true;
     let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
     if (d.metrics && !document.hidden) updateMetricsUI(d.metrics);
+    if (d.stats && !document.hidden) updateStatsUI(d.stats);
     if (d.status) handleStatus(d.status);
   };
   es.onerror = () => {
@@ -577,7 +603,7 @@ function connect(jobId){
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (_es) { _es.close(); _es = null; } }
-  else if (_sseDead) pollMetricsOnce();
+  else if (_sseDead) { pollMetricsOnce(); pollStatsOnce(); }
   else connect(_curJob);
 });
 

@@ -67,6 +67,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - [x] Responsive, mobile-first UI; light/dark theme (follows OS) ; reduced-motion support
 - [x] Live system panel (CPU/RAM/network/download speed) via **SSE push**, polling fallback
 - [x] Allocation panel (workers/threads, RAM allocated, max papers, avg speed, live RAM)
+- [x] Session-stats dashboard (uptime, corpora built, papers indexed, questions, last-build/retrieval/answer timings) via SSE
 - [x] Build progress + ETA + fun animations + Wikipedia fun-facts
 - [x] Build-complete desktop notification; keyboard shortcuts (`/`, Cmd/Ctrl+Enter)
 
@@ -101,7 +102,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - Pipelined build + on-disk corpus cache + resume + cancel + incremental Parquet checkpoints
 - Browse panel + sortable citation column + CSV / Parquet / BibTeX / RIS export
 - Multi-corpus topic switcher (`/corpora`, `/corpus/select`, in-memory LRU) + shareable `?corpus=` deep-links
-- Observability counters at `/stats`
+- Observability counters at `/stats` + in-UI Session-stats dashboard (uptime, builds, papers, questions, retrieval/answer timings) pushed over SSE
 
 **Sources**
 - OpenAlex + arXiv + PubMed Central + Crossref adapters behind a Source selector (each filters to open-access PDFs)
@@ -178,7 +179,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 
 ### Milestone F — Ops & quality
 - Automated RAG evaluation harness + regression gates
-- Observability (timings, retrieval hit-rates, error rates)
+- Observability (timings ✅ via `/stats` + in-UI dashboard; retrieval hit-rates / error rates next)
 - CI matrix incl. an Ollama-backed integration job
 
 ---
@@ -221,7 +222,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - [x] Incremental Parquet checkpoints during build (`checkpoint_every`)  · ⬜ full streaming-to-disk rearchitecture
 - [x] Export to BibTeX + RIS (Zotero/EndNote); Notion snapshot is this file
 - [x] Saved/shareable corpora via `?corpus=<key>` deep-link + Share button
-- [x] Observability: `/stats` endpoint (builds, papers, timings)  · ⬜ in-UI dashboard
+- [x] Observability: `/stats` endpoint (builds, papers, timings) + **in-UI Session-stats dashboard** (pushed over the same SSE)
 
 **Ops / hygiene** — done
 - [x] Opt-in CI integration job with a real Ollama model (`ollama-integration.yml`)

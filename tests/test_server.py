@@ -224,6 +224,14 @@ def test_events_first_tick_has_metrics():
     assert '"metrics"' in first
 
 
+def test_events_first_tick_has_stats():
+    resp = server.events(rf.get("/events"))   # stats ride the same SSE for the in-UI dashboard
+    first = next(iter(resp.streaming_content)).decode()
+    assert '"stats"' in first
+    payload = json.loads(first.split("data:", 1)[1])
+    assert {"builds", "papers", "questions", "uptime_s"} <= set(payload["stats"])
+
+
 def test_corpus_endpoint_empty():
     server.CORPUS.clear()
     data = json.loads(server.corpus_view(rf.get("/corpus")).content)
@@ -327,6 +335,14 @@ def test_index_shows_allocation_panel(monkeypatch):
     assert "RAM used (live)" in body
     # placeholders must be substituted (no leftover template tokens)
     assert "{{" not in body
+
+
+def test_index_shows_session_stats_panel(monkeypatch):
+    monkeypatch.setattr(server, "pick_model", lambda: "llama3.2")
+    body = server.index(rf.get("/")).content.decode()
+    assert "Session stats" in body
+    for el in ("stUptime", "stBuilds", "stPapers", "stQuestions", "stAnswer"):
+        assert el in body
 
 
 def test_build_handles_oom(monkeypatch):

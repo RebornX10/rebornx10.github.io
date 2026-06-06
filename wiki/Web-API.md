@@ -112,7 +112,7 @@ Live system metrics: `cpu`, `ram`, `net_kbps`, `ram_used_gb`/`ram_total_gb`, and
 Cumulative observability counters: `uptime_s`, `builds`, `papers`, `with_text`, `questions`, `last_build_s`, `avg_retrieval_ms`, `avg_answer_ms`.
 
 ## `GET /events?job=<id>`
-Server-Sent-Events push that the UI uses instead of polling: each ~1s tick is `data: {"metrics": {…}}`, and if `job` is given, also `"status": {…}` (the same shape as `/status`). The stream ends when the job finishes. The client falls back to polling `/metrics` + `/status` if EventSource never connects.
+Server-Sent-Events push that the UI uses instead of polling: each ~1s tick is `data: {"metrics": {…}, "stats": {…}}` (the `stats` block is the same shape as `/stats`, feeding the in-UI Session-stats dashboard), and if `job` is given, also `"status": {…}` (the same shape as `/status`). The stream ends when the job finishes. The client falls back to polling `/metrics` (1s) + `/stats` (5s) + `/status` if EventSource never connects.
 
 ## PWA endpoints
 `GET /manifest.webmanifest`, `GET /sw.js` (root-scoped service worker, version auto-busted by an asset hash), `GET /static/<icon>.png`, `GET /favicon.ico`.

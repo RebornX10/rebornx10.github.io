@@ -559,11 +559,11 @@ def metrics_view(request):
     return JsonResponse(_metrics_payload())
 
 
-def stats_view(request):
+def _stats_payload() -> dict:
     """Cumulative observability counters (builds, papers, timings)."""
     def avg(xs):
         return round(sum(xs) / len(xs), 1) if xs else 0.0
-    return JsonResponse({
+    return {
         "uptime_s": round(time.time() - STATS["started"]),
         "builds": STATS["builds"],
         "papers": STATS["papers"],
@@ -572,7 +572,11 @@ def stats_view(request):
         "last_build_s": STATS["last_build_s"],
         "avg_retrieval_ms": avg(STATS["retrieval_ms"]),
         "avg_answer_ms": avg(STATS["answer_ms"]),
-    })
+    }
+
+
+def stats_view(request):
+    return JsonResponse(_stats_payload())
 
 
 def events(request):
@@ -582,7 +586,7 @@ def events(request):
 
     def gen():
         while True:
-            payload = {"metrics": _metrics_payload()}
+            payload = {"metrics": _metrics_payload(), "stats": _stats_payload()}
             job = JOBS.get(job_id)
             if job is not None:
                 payload["status"] = job
