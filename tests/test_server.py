@@ -152,6 +152,21 @@ def test_build_clamps_to_cap(monkeypatch):
     assert captured["n"] == server.effective_max_papers()
 
 
+def test_events_streams_metrics_and_status():
+    server.JOBS["e1"] = {"stage": "done", "progress": 100, "done": True, "error": False}
+    resp = server.events(rf.get("/events?job=e1"))
+    assert resp["Content-Type"] == "text/event-stream"
+    body = b"".join(resp.streaming_content).decode()  # job is done -> gen ends after one tick
+    assert '"metrics"' in body and '"status"' in body and '"done": true' in body
+
+
+def test_events_first_tick_has_metrics():
+    resp = server.events(rf.get("/events"))   # no job -> would loop; only read first tick
+    assert resp["Content-Type"] == "text/event-stream"
+    first = next(iter(resp.streaming_content)).decode()
+    assert '"metrics"' in first
+
+
 def test_corpus_endpoint_empty():
     server.CORPUS.clear()
     data = json.loads(server.corpus_view(rf.get("/corpus")).content)

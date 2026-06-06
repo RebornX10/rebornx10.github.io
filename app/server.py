@@ -415,7 +415,7 @@ def download_parquet(request):
     return resp
 
 
-def metrics_view(request):
+def _metrics_payload() -> dict:
     m = metrics()
     m["ram_used_gb"] = round(m["ram_used_mb"] / 1024, 2)
     m["ram_total_gb"] = round(m["ram_total_mb"] / 1024, 2)
@@ -423,7 +423,34 @@ def metrics_view(request):
     m["dl_avg_s"] = round(float(DL["avg_s"]), 2)
     m["dl_done"] = int(DL["done"])
     m["dl_total"] = int(DL["total"])
-    return JsonResponse(m)
+    return m
+
+
+def metrics_view(request):
+    return JsonResponse(_metrics_payload())
+
+
+def events(request):
+    """SSE push of live metrics (~1s) plus the active build's status, so the UI
+    doesn't poll. `?job=<id>` includes that job's status in each tick."""
+    job_id = request.GET.get("job", "")
+
+    def gen():
+        while True:
+            payload = {"metrics": _metrics_payload()}
+            job = JOBS.get(job_id)
+            if job is not None:
+                payload["status"] = job
+            yield _sse(payload)
+            if job is not None and job.get("done"):
+                break          # build finished -> client reconnects metrics-only
+            time.sleep(1)
+
+    resp = StreamingHttpResponse(gen(), content_type="text/event-stream")
+    resp["Cache-Control"] = "no-cache"
+    resp["X-Accel-Buffering"] = "no"
+    resp["Content-Encoding"] = "identity"
+    return resp
 
 
 def app_css(request):
@@ -483,6 +510,7 @@ urlpatterns = [
     path("download/csv", download_csv),
     path("download/parquet", download_parquet),
     path("metrics", metrics_view),
+    path("events", events),
     path("static/styles.css", app_css),
     path("static/app.js", app_js),
     path("manifest.webmanifest", manifest_view),

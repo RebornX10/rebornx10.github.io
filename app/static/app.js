@@ -112,7 +112,7 @@ $('go').onclick = async () => {
   if ('Notification' in window && Notification.permission === 'default')
     Notification.requestPermission().catch(() => {});
   startFun(topic);
-  poll(job_id);
+  connect(job_id);   // stream this build's status (+ metrics) over SSE
 };
 
 $('cancel').onclick = async () => {
@@ -218,20 +218,20 @@ document.addEventListener('keydown', e => {
 
 loadCorpus();   // resume: show any already-loaded corpus on page load
 
-function poll(job) {
-  const t = setInterval(async () => {
-    const s = await (await fetch('/status?job=' + job)).json();
-    $('bar').style.width = (s.progress||0) + '%';
-    $('stage').textContent = s.stage || '';
-    updateETA(s.progress || 0);
-    if (s.done) {
-      clearInterval(t); _jobId = null;
-      $('go').disabled = false; $('cancel').style.display = 'none';
-      stopFun(!s.error);
-      if (!s.error) { $('qa').classList.remove('disabled'); $('q').focus(); loadCorpus(); notifyDone(s); }
-      else if (s.suggested_n) { $('n').value = s.suggested_n; $('n').focus(); }
-    }
-  }, 500);
+// handle a build-status update (from the SSE stream or the polling fallback)
+function handleStatus(s) {
+  if (_curJob === null) return;          // ignore a stray status after completion
+  $('bar').style.width = (s.progress || 0) + '%';
+  $('stage').textContent = s.stage || '';
+  updateETA(s.progress || 0);
+  if (s.done) {
+    _curJob = null; _jobId = null;
+    $('go').disabled = false; $('cancel').style.display = 'none';
+    stopFun(!s.error);
+    if (!s.error) { $('qa').classList.remove('disabled'); $('q').focus(); loadCorpus(); notifyDone(s); }
+    else if (s.suggested_n) { $('n').value = s.suggested_n; $('n').focus(); }
+    connect(null);                       // build over -> metrics-only stream
+  }
 }
 
 // --- ask ---
@@ -462,34 +462,77 @@ function spark(cv, data, fixedMax, color){
 }
 const fmtNet = k => k >= 1024 ? (k/1024).toFixed(1)+' MB/s' : Math.round(k)+' KB/s';
 const ramGbD = [];  // rolling window of live RAM-used (GB) for the running average
-async function pollMetrics(){
-  if (document.hidden) return;   // don't poll/redraw while the tab is in the background
-  try {
-    const m = await (await fetch('/metrics')).json();
-    push(cpuD, m.cpu); push(ramD, m.ram); push(netD, m.net_kbps);
-    $('cpuVal').textContent = m.cpu + '%';
-    $('ramVal').textContent = m.ram + '%';
-    $('netVal').textContent = fmtNet(m.net_kbps);
-    spark($('cpuG'), cpuD, 100, '#6ea8fe');
-    spark($('ramG'), ramD, 100, '#3fb950');
-    spark($('netG'), netD, 0,   '#e3b341');
 
-    // live RAM used (GB) + rolling average over the window
-    push(ramGbD, m.ram_used_gb);
-    const avgGb = ramGbD.reduce((a,b) => a+b, 0) / ramGbD.length;
-    $('ramUsed').textContent = m.ram_used_gb.toFixed(2) + ' GB (avg ' + avgGb.toFixed(2) + ')';
-
-    // average download speed per paper
-    if (m.dl_avg_s > 0) {
-      $('dlAvg').textContent = m.dl_avg_s.toFixed(2) + ' s/paper'
-        + (m.dl_active && m.dl_total ? '  (' + m.dl_done + '/' + m.dl_total + ')' : '');
-    } else {
-      $('dlAvg').textContent = m.dl_active ? 'starting…' : '–';
-    }
-  } catch (e) {}
+function updateMetricsUI(m){
+  push(cpuD, m.cpu); push(ramD, m.ram); push(netD, m.net_kbps);
+  $('cpuVal').textContent = m.cpu + '%';
+  $('ramVal').textContent = m.ram + '%';
+  $('netVal').textContent = fmtNet(m.net_kbps);
+  spark($('cpuG'), cpuD, 100, '#6ea8fe');
+  spark($('ramG'), ramD, 100, '#3fb950');
+  spark($('netG'), netD, 0,   '#e3b341');
+  push(ramGbD, m.ram_used_gb);
+  const avgGb = ramGbD.reduce((a, b) => a + b, 0) / ramGbD.length;
+  $('ramUsed').textContent = m.ram_used_gb.toFixed(2) + ' GB (avg ' + avgGb.toFixed(2) + ')';
+  if (m.dl_avg_s > 0) {
+    $('dlAvg').textContent = m.dl_avg_s.toFixed(2) + ' s/paper'
+      + (m.dl_active && m.dl_total ? '  (' + m.dl_done + '/' + m.dl_total + ')' : '');
+  } else {
+    $('dlAvg').textContent = m.dl_active ? 'starting…' : '–';
+  }
 }
-setInterval(pollMetrics, 1000); pollMetrics();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) pollMetrics(); });
+
+// Push updates over a single SSE stream (metrics + the active build's status),
+// falling back to polling if EventSource never connects (e.g. a buffering proxy).
+let _es = null, _esGotData = false, _sseDead = !('EventSource' in window);
+let _pmTimer = null, _psTimer = null, _curJob = null;
+
+function pollMetricsOnce(){
+  fetch('/metrics').then(r => r.json())
+    .then(m => { if (!document.hidden) updateMetricsUI(m); }).catch(() => {});
+}
+function startStatusPoll(){
+  if (_psTimer) { clearInterval(_psTimer); _psTimer = null; }
+  if (!_curJob) return;
+  _psTimer = setInterval(async () => {
+    if (!_curJob) { clearInterval(_psTimer); _psTimer = null; return; }
+    try { handleStatus(await (await fetch('/status?job=' + _curJob)).json()); } catch (e) {}
+  }, 600);
+}
+function startPollingFallback(){
+  if (!_pmTimer) { _pmTimer = setInterval(pollMetricsOnce, 1000); pollMetricsOnce(); }
+  startStatusPoll();
+}
+function connect(jobId){
+  _curJob = jobId || null;
+  if (_sseDead) { startPollingFallback(); return; }
+  if (_es) { _es.close(); _es = null; }
+  if (_psTimer) { clearInterval(_psTimer); _psTimer = null; }   // SSE carries status
+  let es;
+  try { es = new EventSource('/events' + (_curJob ? '?job=' + encodeURIComponent(_curJob) : '')); }
+  catch (e) { _sseDead = true; startPollingFallback(); return; }
+  _es = es;
+  es.onmessage = ev => {
+    _esGotData = true;
+    let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+    if (d.metrics && !document.hidden) updateMetricsUI(d.metrics);
+    if (d.status) handleStatus(d.status);
+  };
+  es.onerror = () => {
+    if (!_esGotData) {            // never connected -> permanent polling fallback
+      _sseDead = true; try { es.close(); } catch (e) {} _es = null;
+      startPollingFallback();
+    }                            // otherwise EventSource auto-reconnects
+  };
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (_es) { _es.close(); _es = null; } }
+  else if (_sseDead) pollMetricsOnce();
+  else connect(_curJob);
+});
+
+connect(null);   // start the live stream (metrics; build status added on demand)
 
 // --- PWA: service worker + install prompt ---
 if ('serviceWorker' in navigator) {

@@ -32,7 +32,7 @@ Start a corpus build. Runs asynchronously in a background thread and returns imm
 ---
 
 ## `GET /status?job=<job_id>`
-Poll a build's progress. The UI calls this every 0.5s.
+A build's current progress. The UI normally receives this over the `/events` SSE stream and only polls `/status` as a fallback.
 
 **Response:**
 ```json
@@ -95,6 +95,9 @@ Summary + a page of the current corpus, for the browse panel.
 
 **Response:** `{"topic", "count", "with_text", "shown", "papers": [{"title","authors","journal","date","country","abstract","has_text","doi","pdf_url"}]}`. `{"count": 0, "papers": []}` when nothing is loaded.
 
+## `GET /corpora` · `POST /corpus/select`
+Multi-corpus switcher. `GET /corpora` lists previously built corpora from the cache: `{"current": "<key>", "items": [{"key","topic","count","created"}]}`. `POST /corpus/select {"key": "..."}` makes one of them the active corpus (from an in-memory LRU or the on-disk cache); `404` if the key is unknown.
+
 ## `GET /download/csv` · `GET /download/parquet`
 Download the current corpus as a file (`Content-Disposition: attachment`, topic-slugged filename). `404` if no corpus is loaded.
 
@@ -102,7 +105,10 @@ Download the current corpus as a file (`Content-Disposition: attachment`, topic-
 Question-bar completions: generic templates plus topic- and corpus-aware questions. `{"suggestions": ["..."]}`.
 
 ## `GET /metrics`
-Live system metrics for the panel (polled ~1s): `cpu`, `ram`, `net_kbps`, `ram_used_gb`/`ram_total_gb`, and download stats `dl_active`/`dl_avg_s`/`dl_done`/`dl_total`.
+Live system metrics: `cpu`, `ram`, `net_kbps`, `ram_used_gb`/`ram_total_gb`, and download stats `dl_active`/`dl_avg_s`/`dl_done`/`dl_total`. Used as the polling fallback.
+
+## `GET /events?job=<id>`
+Server-Sent-Events push that the UI uses instead of polling: each ~1s tick is `data: {"metrics": {…}}`, and if `job` is given, also `"status": {…}` (the same shape as `/status`). The stream ends when the job finishes. The client falls back to polling `/metrics` + `/status` if EventSource never connects.
 
 ## PWA endpoints
 `GET /manifest.webmanifest`, `GET /sw.js` (root-scoped service worker, version auto-busted by an asset hash), `GET /static/<icon>.png`, `GET /favicon.ico`.

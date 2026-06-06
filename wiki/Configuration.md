@@ -48,6 +48,9 @@ ollama:
 retrieval:
   top_k: 5             # how many papers to feed the model per question
   context_budget: 9000 # max characters of context sent to the model
+  rerank: auto         # embedding re-rank of BM25 hits: auto | on | off
+  embed_model: nomic-embed-text  # Ollama embedding model (auto-used only if installed)
+  rerank_k: 30         # BM25 candidates to re-rank by embedding similarity
 
 theme:
   anthropic_model: claude-opus-4-8  # model used only if with_theme=True (needs ANTHROPIC_API_KEY)
