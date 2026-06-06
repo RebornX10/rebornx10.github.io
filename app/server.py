@@ -393,8 +393,9 @@ def corpus_view(request):
             "doi": _s(r.get("doi")),
             "pdf_url": _s(r.get("pdf_url")),
         })
-    return JsonResponse({"topic": CORPUS.get("topic") or "", "count": total,
-                         "with_text": with_text, "shown": len(papers), "papers": papers})
+    return JsonResponse({"topic": CORPUS.get("topic") or "", "key": CORPUS.get("key") or "",
+                         "count": total, "with_text": with_text, "shown": len(papers),
+                         "papers": papers})
 
 
 def corpora_view(request):

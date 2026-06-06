@@ -123,12 +123,13 @@ $('cancel').onclick = async () => {
 };
 
 // --- corpus browse panel (also used to resume a loaded corpus on page load) ---
-let _corpusRows = [];
+let _corpusRows = [], _curKey = '';
 async function loadCorpus(){
   let data;
   try { data = await (await fetch('/corpus')).json(); } catch (e) { return; }
   if (!data || !data.count) { $('corpus').style.display = 'none'; return; }
   _corpusRows = data.papers || [];
+  _curKey = data.key || '';
   $('corpus').style.display = '';
   $('qa').classList.remove('disabled');           // a corpus is loaded -> enable Q&A
   $('corpusTitle').textContent = data.topic || 'Corpus';
@@ -218,6 +219,16 @@ $('corpusTable').addEventListener('click', e => {
 });
 
 // notify when a build finishes while the user is on another tab/app
+// copy a shareable deep-link to the current corpus
+$('share').onclick = async () => {
+  if (!_curKey) return;
+  const link = location.origin + '/?corpus=' + encodeURIComponent(_curKey);
+  try { await navigator.clipboard.writeText(link); } catch (e) {}
+  const label = $('share').textContent;
+  $('share').textContent = 'Copied!';
+  setTimeout(() => { $('share').textContent = label; }, 1200);
+};
+
 function notifyDone(s){
   if (document.hasFocus() || !('Notification' in window) || Notification.permission !== 'granted') return;
   try {
@@ -237,7 +248,17 @@ document.addEventListener('keydown', e => {
   }
 });
 
-loadCorpus();   // resume: show any already-loaded corpus on page load
+// on load: open a shared corpus (?corpus=key) if present, else resume the last one
+(async () => {
+  const key = new URLSearchParams(location.search).get('corpus');
+  if (key) {
+    try {
+      await fetch('/corpus/select', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+    } catch (e) {}
+  }
+  loadCorpus();
+})();
 
 // handle a build-status update (from the SSE stream or the polling fallback)
 function handleStatus(s) {
