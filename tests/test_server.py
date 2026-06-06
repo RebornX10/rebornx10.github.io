@@ -205,6 +205,24 @@ def test_download_without_corpus():
     server.CORPUS.clear()
     assert server.download_csv(rf.get("/download/csv")).status_code == 404
     assert server.download_parquet(rf.get("/download/parquet")).status_code == 404
+    assert server.download_bibtex(rf.get("/download/bibtex")).status_code == 404
+    assert server.download_ris(rf.get("/download/ris")).status_code == 404
+
+
+def test_download_bibtex_and_ris():
+    server.CORPUS["topic"] = "graphene"
+    server.CORPUS["df"] = pd.DataFrame([
+        {"title": "Graphene electronics", "authors": ["Ada Lovelace", "Alan Turing"],
+         "journal": "Nature", "date": "2023-05-01", "doi": "https://doi.org/10.1/x"}])
+    bib = server.download_bibtex(rf.get("/download/bibtex"))
+    assert bib.status_code == 200 and "x-bibtex" in bib["Content-Type"]
+    text = bib.content.decode()
+    assert "@article{" in text and "Ada Lovelace and Alan Turing" in text
+    assert "year = {2023}" in text and "doi = {10.1/x}" in text
+    ris = server.download_ris(rf.get("/download/ris"))
+    assert ris.status_code == 200
+    rtext = ris.content.decode()
+    assert "TY  - JOUR" in rtext and "AU  - Ada Lovelace" in rtext and "PY  - 2023" in rtext
 
 
 def test_corpora_lists_current(monkeypatch):

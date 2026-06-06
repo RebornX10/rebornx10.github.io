@@ -74,7 +74,7 @@ button.secondary { background:var(--input); color:var(--fg); border:1px solid va
 .muted { color:var(--muted); }
 .corpushead { display:flex; justify-content:space-between; align-items:center; gap:10px;
               flex-wrap:wrap; margin-bottom:10px; }
-.dlbtns { display:flex; gap:8px; }
+.dlbtns { display:flex; gap:8px; flex-wrap:wrap; }
 .linkbtn { font-size:13px; padding:7px 12px; border:1px solid var(--line); border-radius:8px;
            background:var(--input); color:var(--fg); text-decoration:none; white-space:nowrap; }
 .linkbtn:hover { border-color:var(--accent); }

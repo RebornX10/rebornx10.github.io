@@ -10,7 +10,8 @@ const SHELL = [
   '/static/apple-touch-icon.png', '/static/favicon.png',
 ];
 const API = ['/build', '/status', '/ask', '/ask_stream', '/suggest', '/metrics', '/events',
-             '/corpus', '/corpora', '/corpus/select', '/download/csv', '/download/parquet', '/cancel'];
+             '/corpus', '/corpora', '/corpus/select', '/cancel',
+             '/download/csv', '/download/parquet', '/download/bibtex', '/download/ris'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

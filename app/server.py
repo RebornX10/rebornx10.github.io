@@ -425,6 +425,71 @@ def download_parquet(request):
     return resp
 
 
+def _year(d) -> str:
+    d = _s(d)
+    return d[:4] if len(d) >= 4 and d[:4].isdigit() else ""
+
+
+def _doi(d) -> str:
+    return _s(d).replace("https://doi.org/", "").replace("http://doi.org/", "")
+
+
+def _to_bibtex(df) -> str:
+    out = []
+    for i, r in enumerate(df.to_dict("records")):
+        authors = [a for a in _alist(r.get("authors")) if isinstance(a, str)]
+        year = _year(r.get("date"))
+        surname = authors[0].split()[-1] if authors else "anon"
+        key = (re.sub(r"[^A-Za-z0-9]", "", f"{surname}{year}") or "ref") + str(i)
+        fields = [f"  title = {{{_s(r.get('title'))}}}"]
+        if authors:
+            fields.append("  author = {" + " and ".join(authors) + "}")
+        if _s(r.get("journal")):
+            fields.append(f"  journal = {{{_s(r.get('journal'))}}}")
+        if year:
+            fields.append(f"  year = {{{year}}}")
+        if _doi(r.get("doi")):
+            fields.append(f"  doi = {{{_doi(r.get('doi'))}}}")
+        out.append("@article{" + key + ",\n" + ",\n".join(fields) + "\n}")
+    return "\n\n".join(out) + "\n"
+
+
+def _to_ris(df) -> str:
+    blocks = []
+    for r in df.to_dict("records"):
+        lines = ["TY  - JOUR", f"TI  - {_s(r.get('title'))}"]
+        lines += [f"AU  - {a}" for a in _alist(r.get("authors")) if isinstance(a, str)]
+        if _s(r.get("journal")):
+            lines.append(f"JO  - {_s(r.get('journal'))}")
+        if _year(r.get("date")):
+            lines.append(f"PY  - {_year(r.get('date'))}")
+        if _doi(r.get("doi")):
+            lines.append(f"DO  - {_doi(r.get('doi'))}")
+        lines.append("ER  - ")
+        blocks.append("\n".join(lines))
+    return "\n".join(blocks) + "\n"
+
+
+def _citation_response(text: str, ext: str, ctype: str):
+    resp = HttpResponse(text, content_type=ctype)
+    resp["Content-Disposition"] = f'attachment; filename="papers-{_slug(CORPUS.get("topic"))}.{ext}"'
+    return resp
+
+
+def download_bibtex(request):
+    df = CORPUS.get("df")
+    if df is None or len(df) == 0:
+        return HttpResponseNotFound("no corpus")
+    return _citation_response(_to_bibtex(df), "bib", "application/x-bibtex")
+
+
+def download_ris(request):
+    df = CORPUS.get("df")
+    if df is None or len(df) == 0:
+        return HttpResponseNotFound("no corpus")
+    return _citation_response(_to_ris(df), "ris", "application/x-research-info-systems")
+
+
 def _metrics_payload() -> dict:
     m = metrics()
     m["ram_used_gb"] = round(m["ram_used_mb"] / 1024, 2)
@@ -519,6 +584,8 @@ urlpatterns = [
     path("corpus/select", corpus_select),
     path("download/csv", download_csv),
     path("download/parquet", download_parquet),
+    path("download/bibtex", download_bibtex),
+    path("download/ris", download_ris),
     path("metrics", metrics_view),
     path("events", events),
     path("static/styles.css", app_css),
