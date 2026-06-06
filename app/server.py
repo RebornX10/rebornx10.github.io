@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import mimetypes
+import os
 import re
 import sys
 import threading
@@ -67,6 +68,14 @@ _LOCK = threading.Lock()
 
 # Live download stats for the System panel (polled via /metrics every second).
 DL: dict[str, object] = {"active": False, "done": 0, "total": 0, "avg_s": 0.0, "t0": 0.0}
+
+
+def _checkpoint(papers, out: str) -> None:
+    """Write a partial parquet so an interrupted build isn't lost entirely."""
+    try:
+        pd.DataFrame([asdict(p) for p in papers]).to_parquet(f"{out}.partial.parquet")
+    except Exception as e:
+        log.warning("checkpoint write failed: %s", e)
 
 
 def _set_corpus(df, topic: str, key: str = "") -> None:
@@ -162,6 +171,9 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int,
                               avg_s=(elapsed / done if done else 0.0))
                     job.update(stage=f"Downloaded {done}/{total}: {(paper.title or '')[:55]}…",
                                progress=5 + int(90 * done / total))
+                    ckpt = dl.get("checkpoint_every", 0)
+                    if ckpt and done % ckpt == 0:
+                        _checkpoint(papers, dl["output_basename"])
                     if ram_guard_tripped(done):
                         break
         finally:
@@ -181,6 +193,10 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int,
         _set_corpus(df, topic, key)
         save_corpus(df)
         save_to_cache(key, df, topic)
+        try:
+            os.remove(f"{dl['output_basename']}.partial.parquet")  # final write supersedes it
+        except OSError:
+            pass
         with_text = int(df["content"].notna().sum())
         log.info("Build done: %d papers, %d with full text, RAM now %.2f GB",
                  total, with_text, _mem_used_bytes() / 1e9)

@@ -27,6 +27,7 @@ download:
   read_timeout: 20
   max_chars: 2000000       # full text kept per paper in memory (the per-paper cache)
   output_basename: papers
+  checkpoint_every: 0      # write <basename>.partial.parquet every N papers (0 = off)
   ram_fraction: 0.85       # fraction of available RAM the corpus may use (peak)
   ram_per_paper_mb: 0.06   # est. peak memory per paper (runtime guard is the real safety net)
   ram_guard_pct: 85        # abort a build if projected peak RAM would exceed this

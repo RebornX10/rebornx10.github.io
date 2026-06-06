@@ -334,6 +334,13 @@ def test_status_unknown_job():
     assert server.status(rf.get("/status?job=nope")).status_code == 400
 
 
+def test_checkpoint_writes_partial(tmp_path):
+    from app.models import Paper
+    out = str(tmp_path / "papers")
+    server._checkpoint([Paper(openalex_id="W", doi=None, title="t")], out)
+    assert (tmp_path / "papers.partial.parquet").exists()
+
+
 def test_cancel_sets_flag():
     server.JOBS["j1"] = {"stage": "x", "progress": 10, "done": False, "error": False, "cancel": False}
     resp = server.cancel(rf.post("/cancel", data=json.dumps({"job": "j1"}),
