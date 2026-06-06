@@ -15,7 +15,7 @@ API = "https://api.openalex.org/works"
 # Only the top-level fields parse_work actually reads — shrinks each page payload
 # and speeds JSON decoding (OpenAlex returns ~50 fields per work by default).
 SELECT = ",".join([
-    "id", "doi", "title", "authorships", "publication_date",
+    "id", "doi", "title", "authorships", "publication_date", "cited_by_count",
     "primary_location", "locations", "abstract_inverted_index", "primary_topic",
 ])
 
@@ -69,6 +69,7 @@ def parse_work(w: dict) -> Paper:
         pdf_url=candidates[0] if candidates else None,
         pdf_candidates=candidates,
         theme=topic,
+        cited_by_count=w.get("cited_by_count"),
     )
 
 

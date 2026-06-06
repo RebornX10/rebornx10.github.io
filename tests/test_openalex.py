@@ -23,6 +23,7 @@ def test_parse_work_extracts_fields():
     assert p.theme == "Graphene research"
     assert p.country == "GB"
     assert p.countries == ["GB", "US"]
+    assert p.cited_by_count == 42
 
 
 def test_parse_work_prefers_repository_pdf():

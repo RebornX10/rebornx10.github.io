@@ -66,6 +66,7 @@ def make_work(**over):
         ],
         "primary_location": {"source": {"display_name": "Nature"}},
         "primary_topic": {"display_name": "Graphene research"},
+        "cited_by_count": 42,
         "abstract_inverted_index": {"Graphene": [0], "study": [1]},
         "locations": [
             {"host_type": "publisher", "pdf_url": "https://pub.example/a.pdf",

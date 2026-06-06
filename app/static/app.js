@@ -162,17 +162,37 @@ $('corpusSwitch').addEventListener('change', async () => {
     }
   } catch (e) {}
 });
+let _sortKey = '', _sortDir = -1;
 function renderCorpus(){
   const f = ($('corpusFilter').value || '').trim().toLowerCase();
   const rows = _corpusRows.map((r, i) => ({ r, i }))
     .filter(({ r }) => !f || ((r.title || '') + ' ' + (r.journal || '')).toLowerCase().includes(f));
+  if (_sortKey) {
+    rows.sort((a, b) => {
+      let x = a.r[_sortKey], y = b.r[_sortKey];
+      if (typeof x === 'string' || typeof y === 'string') {
+        x = (x || '').toString().toLowerCase(); y = (y || '').toString().toLowerCase();
+        return x < y ? -_sortDir : x > y ? _sortDir : 0;
+      }
+      return ((x || 0) - (y || 0)) * _sortDir;
+    });
+  }
   $('corpusTable').querySelector('tbody').innerHTML = rows.map(({ r, i }) =>
     `<tr class="crow" data-i="${i}"><td>${esc(r.title)}</td>` +
     `<td class="muted">${esc(r.journal || '')}</td>` +
     `<td class="muted">${esc(r.date || '')}</td>` +
+    `<td style="text-align:center">${r.cited_by || 0}</td>` +
     `<td style="text-align:center">${r.has_text ? '✓' : '·'}</td></tr>`).join('');
   $('corpusMore').textContent = rows.length ? '' : 'No matching papers.';
 }
+// click a column header to sort (citations defaults to descending)
+$('corpusTable').querySelector('thead').addEventListener('click', e => {
+  const key = e.target.dataset && e.target.dataset.sort;
+  if (!key) return;
+  if (_sortKey === key) _sortDir = -_sortDir;
+  else { _sortKey = key; _sortDir = key === 'cited_by' ? -1 : 1; }
+  renderCorpus();
+});
 $('corpusFilter').addEventListener('input', renderCorpus);
 $('corpusTable').addEventListener('click', e => {
   const tr = e.target.closest('.crow');
@@ -192,7 +212,7 @@ $('corpusTable').addEventListener('click', e => {
   if (links.length) bits.push(links.join(' · '));
   const det = document.createElement('tr');
   det.className = 'cdetail';
-  det.innerHTML = `<td colspan="4">${bits.join('<br>') || 'No abstract.'}</td>`;
+  det.innerHTML = `<td colspan="5">${bits.join('<br>') || 'No abstract.'}</td>`;
   tr.after(det);
 });
 

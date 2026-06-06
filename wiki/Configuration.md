@@ -69,8 +69,12 @@ These are applied on top of `config.yaml` by `app/config.py`:
 | `MAX_PAPERS_CAP` | `openalex.max_papers_cap` | int |
 | `WORKERS` | `download.workers` | int |
 | `OUTPUT_BASENAME` | `download.output_basename` | str |
+| `PARSE_IN_PROCESS` | `download.parse_in_process` | bool |
 | `OLLAMA_URL` | `ollama.url` | str |
 | `OLLAMA_MODEL` | `ollama.model` | str |
+| `RERANK` | `retrieval.rerank` | str (`auto`/`on`/`off`) |
+| `EMBED_MODEL` | `retrieval.embed_model` | str |
+| `RERANK_K` | `retrieval.rerank_k` | int |
 
 Example:
 
@@ -82,6 +86,7 @@ A custom config file path can be set with `CONFIG_FILE=/path/to/config.yaml`.
 
 ## Tuning notes
 
+- **Embedding re-rank:** retrieval re-ranks the BM25 top-`rerank_k` by semantic similarity when an Ollama embedding model is installed. To enable it locally: `ollama pull nomic-embed-text` (then `rerank: auto` activates it automatically). Force it with `RERANK=on`, or disable with `RERANK=off`. On the Hugging Face Space the embed model is pulled at startup (`EMBED_MODEL`), so re-rank is live there. With no embed model present it transparently falls back to pure BM25.
 - **Download concurrency:** PDF downloads are I/O-bound, so `workers` defaults to `null` and is auto-computed as `available CPU threads x io_multiplier`, capped at `io_workers_cap` (e.g. 16 on a 2-vCPU free Space, 32 on a big box). Benchmarks show ~6x throughput vs. one worker per CPU. Set `workers` to an int (or the `WORKERS` env var) to force a fixed value.
 - **Speed vs. coverage:** once concurrency is high, the wall-clock floor is the per-paper "straggler" — one slow PDF holds a slot until `paper_deadline_s`. Lowering `download.paper_deadline_s` cuts that tail and makes builds faster, at the cost of dropping a few slow-but-valid PDFs.
 - **Memory:** the whole corpus (full text included) is held in RAM during a build. `max_chars` caps per-paper text; `max_papers_cap` caps the count. Keep these sane for the machine you run on (especially small free Spaces).

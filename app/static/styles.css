@@ -80,7 +80,9 @@ select.linkbtn { max-width:200px; }
              margin-top:10px; }
 #corpusTable { width:100%; border-collapse:collapse; font-size:13px; }
 #corpusTable th { position:sticky; top:0; background:var(--card); text-align:left;
-                  font-weight:600; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line); }
+                  font-weight:600; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line);
+                  cursor:pointer; user-select:none; white-space:nowrap; }
+#corpusTable th:hover { color:var(--fg); }
 #corpusTable td { padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
 #corpusTable tr:last-child td { border-bottom:0; }
 .crow { cursor:pointer; } .crow:hover td { background:var(--input); }

@@ -367,6 +367,7 @@ def corpus_view(request):
             "country": _s(r.get("country")),
             "abstract": _s(r.get("abstract"))[:800],
             "has_text": bool(_s(r.get("content"))),
+            "cited_by": int(r["cited_by_count"]) if pd.notna(r.get("cited_by_count")) else 0,
             "doi": _s(r.get("doi")),
             "pdf_url": _s(r.get("pdf_url")),
         })

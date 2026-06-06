@@ -26,6 +26,10 @@ _ENV_OVERRIDES = {
     "RAM_TARGET_PCT": (("download", "ram_target_pct"), float),
     "OLLAMA_URL": (("ollama", "url"), str),
     "OLLAMA_MODEL": (("ollama", "model"), str),
+    "PARSE_IN_PROCESS": (("download", "parse_in_process"), _as_bool),
+    "RERANK": (("retrieval", "rerank"), str),
+    "EMBED_MODEL": (("retrieval", "embed_model"), str),
+    "RERANK_K": (("retrieval", "rerank_k"), int),
 }
 
 

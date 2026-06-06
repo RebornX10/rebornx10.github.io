@@ -19,3 +19,4 @@ class Paper:
     pdf_candidates: list[str] = field(default_factory=list)
     content: Optional[str] = None
     theme: Optional[str] = None
+    cited_by_count: Optional[int] = None

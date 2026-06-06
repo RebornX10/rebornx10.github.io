@@ -26,7 +26,11 @@ def test_load_applies_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("MAX_PAPERS_CAP", "500")
     monkeypatch.setenv("RAM_FRACTION", "0.7")
     monkeypatch.setenv("RAM_PER_PAPER_MB", "2")
+    monkeypatch.setenv("RERANK", "on")
+    monkeypatch.setenv("EMBED_MODEL", "nomic-embed-text")
     data = config.load(cfg)
+    assert data["retrieval"]["rerank"] == "on"
+    assert data["retrieval"]["embed_model"] == "nomic-embed-text"
     assert data["download"]["ram_fraction"] == 0.7
     assert data["download"]["ram_per_paper_mb"] == 2
     assert data["download"]["workers"] == 4

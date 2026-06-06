@@ -19,7 +19,7 @@ from app.theme import tag_theme
 log = logging.getLogger("corpus")
 
 COLUMNS = ["authors", "title", "content", "date", "country", "journal", "theme",
-           "doi", "openalex_id", "abstract", "pdf_url", "countries"]
+           "cited_by_count", "doi", "openalex_id", "abstract", "pdf_url", "countries"]
 
 
 def build_corpus(

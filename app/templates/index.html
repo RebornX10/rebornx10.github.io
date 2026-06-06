@@ -77,7 +77,11 @@
         <input id="corpusFilter" placeholder="Filter by title or journal…" autocomplete="off">
         <div class="tablewrap">
           <table id="corpusTable">
-            <thead><tr><th>Title</th><th>Journal</th><th>Date</th><th>Full text</th></tr></thead>
+            <thead><tr>
+              <th data-sort="title">Title</th><th data-sort="journal">Journal</th>
+              <th data-sort="date">Date</th><th data-sort="cited_by" title="Citations (impact)">Cited</th>
+              <th data-sort="has_text">Full text</th>
+            </tr></thead>
             <tbody></tbody>
           </table>
         </div>

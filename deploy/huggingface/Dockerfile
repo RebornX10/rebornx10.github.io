@@ -14,6 +14,7 @@ ENV HOME=/home/user \
     OPEN_BROWSER=false \
     OLLAMA_URL=http://localhost:11434 \
     OLLAMA_MODEL=qwen2.5:0.5b \
+    EMBED_MODEL=nomic-embed-text \
     OUTPUT_BASENAME=/tmp/papers \
     OMP_NUM_THREADS=2 \
     OLLAMA_NUM_PARALLEL=1

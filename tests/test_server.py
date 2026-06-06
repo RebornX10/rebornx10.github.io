@@ -178,14 +178,16 @@ def test_corpus_endpoint_lists_papers():
     server.CORPUS["df"] = pd.DataFrame([
         {"title": "Graphene", "authors": ["Ada", "Alan"], "journal": "Nature", "date": "2023",
          "country": "GB", "abstract": "about graphene", "content": "full text", "doi": "10.1/x",
-         "pdf_url": "http://x/a.pdf"},
+         "pdf_url": "http://x/a.pdf", "cited_by_count": 99},
         {"title": "Other", "authors": ["Bob"], "journal": "J", "date": "2022",
-         "country": "US", "abstract": "x", "content": None, "doi": None, "pdf_url": None}])
+         "country": "US", "abstract": "x", "content": None, "doi": None, "pdf_url": None,
+         "cited_by_count": None}])
     data = json.loads(server.corpus_view(rf.get("/corpus")).content)
     assert data["count"] == 2 and data["with_text"] == 1 and data["topic"] == "graphene"
     assert data["papers"][0]["title"] == "Graphene"
     assert data["papers"][0]["has_text"] is True and data["papers"][1]["has_text"] is False
     assert data["papers"][0]["authors"] == ["Ada", "Alan"]
+    assert data["papers"][0]["cited_by"] == 99 and data["papers"][1]["cited_by"] == 0
 
 
 def test_download_csv_and_parquet():
