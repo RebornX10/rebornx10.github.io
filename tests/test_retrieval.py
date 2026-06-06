@@ -52,6 +52,7 @@ def test_rerank_reorders_by_embedding(monkeypatch):
         return [[1.0, 0.0] if not t.startswith("Doc A") else [0.0, 1.0] for t in texts]
 
     monkeypatch.setattr(oc, "embed", fake_embed)
+    monkeypatch.setattr(retrieval, "_embed_docs", lambda texts, model: fake_embed(texts, model))
     ctx, sources = retrieval.build_context(df, "alpha beta", k=2)
     assert sources[0]["title"] == "Doc B"
 
@@ -64,8 +65,58 @@ def test_rerank_falls_back_on_error(monkeypatch):
         raise RuntimeError("no embedding server")
 
     monkeypatch.setattr(oc, "embed", boom)
+    monkeypatch.setattr(retrieval, "_embed_docs", boom)
     ctx, sources = retrieval.build_context(_df(), "graphene transistors")
     assert sources[0]["title"] == "Graphene electronics"  # BM25 result still returned
+
+
+def test_chunk_excerpt_targets_passage():
+    long_body = ("filler sentence here. " * 200
+                 + " The unique_marker_xyz appears once near the end. "
+                 + "more filler. " * 50)
+    df = pd.DataFrame([
+        {"title": "Long", "abstract": "intro", "content": long_body,
+         "authors": ["A"], "journal": "J", "date": "2023"},
+        {"title": "Other1", "abstract": "x", "content": "nothing here " * 50,
+         "authors": ["B"], "journal": "K", "date": "2022"},
+        {"title": "Other2", "abstract": "y", "content": "different topic " * 50,
+         "authors": ["C"], "journal": "L", "date": "2021"}])
+    ctx, sources = retrieval.build_context(df, "unique_marker_xyz", k=1)
+    assert sources[0]["title"] == "Long"
+    assert "unique_marker_xyz" in ctx   # excerpt is the matching chunk, not the doc head
+
+
+def test_multi_query_fuses_expansions(monkeypatch):
+    df = pd.DataFrame([
+        {"title": "A", "abstract": "alpha", "content": "alpha " * 30,
+         "authors": ["A"], "journal": "J", "date": "2023"},
+        {"title": "B", "abstract": "beta", "content": "beta " * 30,
+         "authors": ["B"], "journal": "K", "date": "2022"},
+        {"title": "C", "abstract": "gamma", "content": "gamma " * 30,
+         "authors": ["C"], "journal": "L", "date": "2021"}])
+    monkeypatch.setattr(retrieval, "_expand", lambda q: ["beta"])
+    ctx, sources = retrieval.build_context(df, "alpha", k=2)
+    titles = {s["title"] for s in sources}
+    assert "A" in titles and "B" in titles   # original found A, the expansion found B
+
+
+def test_embed_docs_cache(tmp_path, monkeypatch):
+    import app.ollama_client as oc
+    from app import corpus
+    monkeypatch.setitem(corpus.CONFIG["download"], "output_basename", str(tmp_path / "papers"))
+    retrieval._emb_store = None
+    calls = {"n": 0}
+
+    def fake_embed(texts, model):
+        calls["n"] += len(texts)
+        return [[0.1, 0.2] for _ in texts]
+
+    monkeypatch.setattr(oc, "embed", fake_embed)
+    v1 = retrieval._embed_docs(["a", "b"], "m")
+    assert calls["n"] == 2
+    v2 = retrieval._embed_docs(["a", "b"], "m")  # cache hit -> no new embeds
+    assert calls["n"] == 2 and v1 == v2
+    retrieval._emb_store = None
 
 
 def test_build_context_respects_budget():

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import os
 import re
+from collections import defaultdict
 
 import pandas as pd
 from rank_bm25 import BM25Okapi
@@ -30,30 +34,49 @@ def _tok(s: str) -> list:
     return _TOKEN.findall(s.lower())
 
 
-# BM25 index is expensive to build, so cache it per corpus. The DataFrame is
-# replaced wholesale on every new build, so its identity is a safe cache key;
-# we pin the df in the cache to keep that id valid.
-_cache: dict = {"id": None, "df": None, "bm25": None, "rows": None}
+def _chunks(text: str, size: int, overlap: int) -> list:
+    text = text.strip()
+    if len(text) <= size:
+        return [text] if text else []
+    step = max(1, size - overlap)
+    return [text[i:i + size] for i in range(0, len(text), step)]
+
+
+# The BM25 index is over passages (a title+abstract unit plus content chunks), so
+# retrieval can find the relevant part of a long paper. Cached per corpus (the
+# DataFrame is replaced wholesale on each build, so its identity is a safe key).
+_cache: dict = {"id": None, "df": None, "bm25": None, "rows": None,
+                "owners": None, "ctext": None}
 
 
 def _index(df: pd.DataFrame):
     if _cache["id"] == id(df) and _cache["bm25"] is not None:
-        return _cache["bm25"], _cache["rows"]
+        return _cache["bm25"], _cache["rows"], _cache["owners"], _cache["ctext"]
     rows = df.to_dict("records")
-    tokens = []
-    for r in rows:
-        blob = f"{_text(r.get('title'))} {_text(r.get('abstract'))} {_text(r.get('content'))}"
-        tokens.append(_tok(blob) or ["_"])
+    chunked = _R.get("chunk", True)
+    size, overlap = _R.get("chunk_size", 1200), _R.get("chunk_overlap", 200)
+    tokens, owners, ctext = [], [], []
+    for ri, r in enumerate(rows):
+        head = f"{_text(r.get('title'))}. {_text(r.get('abstract'))}".strip()
+        body = _text(r.get("content"))
+        if chunked:
+            units = ([head] if head else []) + _chunks(body, size, overlap)
+        else:
+            units = [f"{head} {body}".strip()]
+        if not units:
+            units = ["_"]
+        for u in units:
+            tokens.append(_tok(u) or ["_"])
+            owners.append(ri)
+            ctext.append(u)
     bm25 = BM25Okapi(tokens)
-    _cache.update(id=id(df), df=df, bm25=bm25, rows=rows)
-    return bm25, rows
+    _cache.update(id=id(df), df=df, bm25=bm25, rows=rows, owners=owners, ctext=ctext)
+    return bm25, rows, owners, ctext
 
 
 def _best_excerpt(text: str, q_tokens: set, size: int) -> str:
-    """Return the most query-relevant ~`size`-char window of `text` (with
-    ellipses), instead of always taking the document's head."""
     if len(text) <= size:
-        return text
+        return text.strip()
     step = max(1, size // 2)
     best, best_start, best_score = text[:size], 0, -1
     for start in range(0, len(text) - size + 1, step):
@@ -61,10 +84,10 @@ def _best_excerpt(text: str, q_tokens: set, size: int) -> str:
         score = sum(window.count(t) for t in q_tokens)
         if score > best_score:
             best_score, best_start, best = score, start, text[start:start + size]
-    prefix = "…" if best_start > 0 else ""
-    suffix = "…" if best_start + size < len(text) else ""
-    return f"{prefix}{best.strip()}{suffix}"
+    return f"{'…' if best_start else ''}{best.strip()}{'…' if best_start + size < len(text) else ''}"
 
+
+# --- embedding re-rank (optional) with a persistent, content-addressed cache ----
 
 def _embeddings_enabled() -> bool:
     mode = _R.get("rerank", "auto")
@@ -80,8 +103,38 @@ def _embeddings_enabled() -> bool:
     return _embed_ok["ok"]
 
 
+_emb_store = None
+
+
+def _emb_path() -> str:
+    from app.corpus import _cache_dir
+    return os.path.join(_cache_dir(), "embeddings.json")
+
+
+def _embed_docs(texts: list, model: str) -> list:
+    """Embed document texts, reusing a persistent content-addressed cache so the
+    same paper isn't re-embedded across questions or sessions."""
+    global _emb_store
+    if _emb_store is None:
+        try:
+            _emb_store = json.load(open(_emb_path()))
+        except Exception:
+            _emb_store = {}
+    keys = [hashlib.sha1(t.encode()).hexdigest() for t in texts]
+    missing = [(i, t) for i, (k, t) in enumerate(zip(keys, texts)) if k not in _emb_store]
+    if missing:
+        from app.ollama_client import embed
+        vecs = embed([t for _, t in missing], model)
+        for (i, _), v in zip(missing, vecs):
+            _emb_store[keys[i]] = v
+        try:
+            json.dump(_emb_store, open(_emb_path(), "w"))
+        except Exception:
+            pass
+    return [_emb_store[k] for k in keys]
+
+
 def _rerank(question: str, rows: list, idxs: list) -> list:
-    """Reorder BM25 candidate indices `idxs` by embedding cosine similarity."""
     import numpy as np
 
     from app.ollama_client import embed
@@ -91,23 +144,52 @@ def _rerank(question: str, rows: list, idxs: list) -> list:
         r = rows[i]
         body = _text(r.get("abstract")) or _text(r.get("content"))
         texts.append(f"{_text(r.get('title'))}. {body[:500]}".strip() or "_")
-    vecs = np.asarray(embed([question] + texts, model), dtype="float32")
-    q, docs = vecs[0], vecs[1:]
+    doc_vecs = _embed_docs(texts, model)
+    q_vec = embed([question], model)[0]            # query embedded fresh (not cached)
+    M = np.asarray([q_vec] + doc_vecs, dtype="float32")
+    q, docs = M[0], M[1:]
     q /= (np.linalg.norm(q) + 1e-9)
     docs /= (np.linalg.norm(docs, axis=1, keepdims=True) + 1e-9)
     order = np.argsort(-(docs @ q))
     return [idxs[j] for j in order]
 
 
+def _expand(question: str) -> list:
+    if not _R.get("multi_query"):
+        return []
+    try:
+        from app.ollama_client import expand_query, pick_model
+        model = pick_model()
+        return expand_query(question, model, _R.get("mq_count", 3)) if model else []
+    except Exception as e:
+        log.warning("multi-query expansion failed: %s", e)
+        return []
+
+
 def build_context(df: pd.DataFrame, question: str, k: int = None, budget: int = None):
     k = k or _R["top_k"]
     budget = budget or _R["context_budget"]
-    bm25, rows = _index(df)
-    q_tokens = _tok(question) or ["_"]
-    scores = bm25.get_scores(q_tokens)
+    bm25, rows, owners, ctext = _index(df)
     cand_k = max(k, _R.get("rerank_k", 30))
-    cand = sorted(range(len(rows)), key=lambda i: scores[i], reverse=True)[:cand_k]
 
+    # Reciprocal-rank-fuse the original question with any LLM-expanded variants.
+    # The best-matching passage per paper is tracked for the excerpt.
+    queries = [question] + _expand(question)
+    fused: dict = defaultdict(float)
+    best_chunk: dict = {}
+    for q in queries:
+        scores = bm25.get_scores(_tok(q) or ["_"])
+        per: dict = {}
+        for ci, s in enumerate(scores):
+            ri = owners[ci]
+            if ri not in per or s > per[ri][0]:
+                per[ri] = (s, ci)
+            if ri not in best_chunk or s > best_chunk[ri][0]:
+                best_chunk[ri] = (s, ci)
+        for rank, ri in enumerate(sorted(per, key=lambda r: per[r][0], reverse=True)[:50]):
+            fused[ri] += 1.0 / (60 + rank)
+
+    cand = sorted(fused, key=lambda r: fused[r], reverse=True)[:cand_k]
     order = cand
     if _embeddings_enabled() and len(cand) > 1:
         try:
@@ -117,15 +199,14 @@ def build_context(df: pd.DataFrame, question: str, k: int = None, budget: int = 
             order = cand
     order = order[:k]
 
-    q_set = set(q_tokens)
+    q_set = set(_tok(question) or ["_"])
     per_excerpt = max(200, budget // max(1, k))
     parts, sources, used = [], [], 0
-    for i in order:
-        row = rows[i]
-        body = _text(row.get("content")) or _text(row.get("abstract"))
+    for ri in order:
+        row = rows[ri]
         authors = _authors(row.get("authors"))
         idx = len(parts) + 1
-        excerpt = _best_excerpt(body, q_set, per_excerpt)
+        excerpt = _best_excerpt(ctext[best_chunk[ri][1]], q_set, per_excerpt)
         block = (
             f"[{idx}] Title: {_text(row.get('title'))}\n"
             f"Authors: {', '.join(authors[:6])}\n"
@@ -136,6 +217,7 @@ def build_context(df: pd.DataFrame, question: str, k: int = None, budget: int = 
             break
         parts.append(block)
         used += len(block)
+        body = _text(row.get("content")) or _text(row.get("abstract"))
         sources.append({"title": _text(row.get("title")) or None,
                         "authors": authors[:6],
                         "journal": _text(row.get("journal")) or None,

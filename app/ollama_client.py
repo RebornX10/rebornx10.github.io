@@ -63,6 +63,26 @@ def embed(texts: list, model: str) -> list:
     return r.json()["embeddings"]
 
 
+def expand_query(question: str, model: str, n: int = 3) -> list:
+    """Ask the model for `n` alternative phrasings/synonym queries (one per line)."""
+    prompt = (
+        f"Generate {n} short alternative search queries (different wording and synonyms) "
+        f"for the question below. Output one query per line, no numbering, no preamble.\n\n"
+        f"Question: {question}"
+    )
+    r = _SESSION.post(f"{_OLLAMA['url']}/api/generate",
+                      json={"model": model, "prompt": prompt, "stream": False},
+                      timeout=_OLLAMA["request_timeout"])
+    r.raise_for_status()
+    text = r.json().get("response", "")
+    out = []
+    for line in text.splitlines():
+        q = line.strip().lstrip("-*0123456789. ").strip()
+        if q and q.lower() != question.lower():
+            out.append(q)
+    return out[:n]
+
+
 def chat(question: str, context: str, model: str) -> str:
     log.info("Ollama chat: model=%s, context=%d chars, question=%r",
              model, len(context), question[:80])

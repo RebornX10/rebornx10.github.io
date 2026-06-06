@@ -43,6 +43,11 @@ retrieval:
   rerank: auto             # embedding re-rank of BM25 hits: auto | on | off
   embed_model: nomic-embed-text  # Ollama embedding model (auto-used only if installed)
   rerank_k: 30             # BM25 candidates to re-rank by embedding similarity
+  chunk: true              # index sub-document passages (better recall on long papers)
+  chunk_size: 1200         # characters per chunk
+  chunk_overlap: 200       # overlap between consecutive chunks
+  multi_query: false       # expand the question into variants (LLM) and fuse results
+  mq_count: 3              # number of query variants when multi_query is on
 
 theme:
   anthropic_model: claude-opus-4-8 # claude-haiku-4-5-20251001
