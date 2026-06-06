@@ -34,7 +34,7 @@ from app.arxiv import fetch_metadata as arxiv_fetch
 from app.crossref import fetch_metadata as crossref_fetch
 from app.pubmed import fetch_metadata as pubmed_fetch
 from app.download import download_fulltext
-from app.ollama_client import chat, chat_stream, pick_model, verify_claims
+from app.ollama_client import chat, chat_stream, pick_model, verify_claims, warm_model
 from app.openalex import fetch_metadata
 
 SOURCES = ("openalex", "arxiv", "pubmed", "crossref")
@@ -91,6 +91,13 @@ def _checkpoint(papers, out: str) -> None:
         log.warning("checkpoint write failed: %s", e)
 
 
+def _warm_async() -> None:
+    """Preload the LLM in the background (no-op if disabled) so the first answer
+    after a build/startup doesn't pay a cold model load."""
+    if CONFIG["ollama"].get("warm_on_start", True):
+        threading.Thread(target=warm_model, daemon=True).start()
+
+
 def _set_corpus(df, topic: str, key: str = "") -> None:
     with _LOCK:
         CORPUS["df"] = df
@@ -126,6 +133,7 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int,
         log.info("Cache hit for %r: %d papers", topic, len(cached))
         job.update(stage=f"Loaded {len(cached)} papers from cache ({with_text} with full text).",
                    progress=100, done=True, cached=True)
+        _warm_async()  # preload the model so the user's first question is fast
         return
 
     def ram_guard_tripped(done: int) -> bool:
@@ -219,6 +227,7 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int,
                  total, with_text, _mem_used_bytes() / 1e9)
         job.update(stage=f"Done — {total} papers ({with_text} with full text).",
                    progress=100, done=True)
+        _warm_async()  # preload the model so the user's first question is fast
     except MemoryError:
         suggested = papers_for_target(max(1, state["done"]), baseline, target)
         at = f" at {state['done']} papers" if state["done"] else ""
@@ -708,6 +717,7 @@ def run() -> None:
                 log.info("Resumed last corpus: topic=%r, %d papers", topic, len(df))
     log.info("Ollama: url=%s, model=%s", CONFIG["ollama"]["url"], pick_model() or "(none installed)")
     log.info("OpenAlex: mailto=%s, per_page=%d", CONFIG["openalex"]["mailto"], CONFIG["openalex"]["per_page"])
+    _warm_async()  # start loading the model now so the first question is fast
     log.info("Serving on %s", url)
 
     if CONFIG["server"]["open_browser"] and "RUN_MAIN" not in os.environ:

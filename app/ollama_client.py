@@ -15,6 +15,40 @@ _OLLAMA = CONFIG["ollama"]
 _SESSION = requests.Session()  # reuse keep-alive connections to the Ollama server
 
 
+def _extra() -> dict:
+    """Shared request extras: keep the model warm between calls and bound the
+    context window. keep_alive avoids slow cold reloads; num_ctx prevents the
+    excerpts from being silently truncated (and over-allocating the KV cache)."""
+    extra: dict = {}
+    ka = _OLLAMA.get("keep_alive")
+    if ka not in (None, ""):
+        extra["keep_alive"] = ka
+    opts: dict = {}
+    if _OLLAMA.get("num_ctx"):
+        opts["num_ctx"] = int(_OLLAMA["num_ctx"])
+    if _OLLAMA.get("num_predict") not in (None, ""):
+        opts["num_predict"] = int(_OLLAMA["num_predict"])
+    if opts:
+        extra["options"] = opts
+    return extra
+
+
+def warm_model(model: Optional[str] = None) -> None:
+    """Preload the model so the first real question doesn't pay a cold load.
+    Sending an empty prompt to /api/generate just loads weights and returns."""
+    model = model or pick_model()
+    if not model:
+        return
+    try:
+        t0 = time.monotonic()
+        _SESSION.post(f"{_OLLAMA['url']}/api/generate",
+                      json={"model": model, "prompt": "", "stream": False, **_extra()},
+                      timeout=_OLLAMA["request_timeout"])
+        log.info("Warmed model %s in %.1fs", model, time.monotonic() - t0)
+    except Exception as e:
+        log.warning("model warm-up failed: %s", e)
+
+
 def _prompt(question: str, context: str) -> str:
     return (
         "You are a research assistant. Answer the user's question using ONLY the "
@@ -90,7 +124,7 @@ def chat(question: str, context: str, model: str) -> str:
     r = _SESSION.post(
         f"{_OLLAMA['url']}/api/chat",
         json={"model": model, "messages": [{"role": "user", "content": _prompt(question, context)}],
-              "stream": False},
+              "stream": False, **_extra()},
         timeout=_OLLAMA["request_timeout"],
     )
     r.raise_for_status()
@@ -109,7 +143,8 @@ def verify_claims(answer: str, context: str, model: str) -> str:
     )
     r = _SESSION.post(
         f"{_OLLAMA['url']}/api/chat",
-        json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False},
+        json={"model": model, "messages": [{"role": "user", "content": prompt}],
+              "stream": False, **_extra()},
         timeout=_OLLAMA["request_timeout"],
     )
     r.raise_for_status()
@@ -124,7 +159,7 @@ def chat_stream(question: str, context: str, model: str) -> Iterator[str]:
     with _SESSION.post(
         f"{_OLLAMA['url']}/api/chat",
         json={"model": model, "messages": [{"role": "user", "content": _prompt(question, context)}],
-              "stream": True},
+              "stream": True, **_extra()},
         stream=True,
         timeout=_OLLAMA["request_timeout"],
     ) as r:

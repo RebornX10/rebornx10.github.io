@@ -104,6 +104,7 @@ All variables live in [config.yaml](config.yaml) and can be overridden with envi
 | `OPENALEX_MAILTO` | `openalex.mailto` | — | Your email (OpenAlex polite pool) |
 | `OLLAMA_URL` | `ollama.url` | `http://localhost:11434` | Ollama endpoint |
 | `OLLAMA_MODEL` | `ollama.model` | auto-detect | Model used for answers |
+| `OLLAMA_KEEP_ALIVE` | `ollama.keep_alive` | `30m` | Keep the model resident between questions (avoids slow cold reloads) |
 
 ## Development
 

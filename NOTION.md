@@ -108,6 +108,7 @@ A privacy-friendly, fully-local research assistant: search open-access papers (O
 - OpenAlex + arXiv + PubMed Central + Crossref adapters behind a Source selector (each filters to open-access PDFs)
 
 **Performance & robustness**
+- Answer-latency fix: Ollama `keep_alive` + `num_ctx` on every call and a model **warm-up** at startup / after each build (kills cold-reload stalls — measured cold 2.2s → warm 0.9s → kept-warm 0.4s on llama3.2; far larger on big models)
 - Download speed optimization (I/O oversubscription, deadlines, chunking) — ~6×
 - RAM-based dynamic cap, OOM guard, suggested cap
 - Crash-proof PDF parsing (silenced MuPDF errors, bounded page loop) + optional process pool

@@ -37,6 +37,10 @@ ollama:
   url: http://localhost:11434
   model: null
   request_timeout: 300
+  keep_alive: 30m          # keep the model resident between questions (avoids slow cold reloads)
+  num_ctx: 4096            # context window: fits the excerpts + answer without truncation, bounds prefill
+  num_predict: null        # max answer tokens (null = model default; set e.g. 800 to cap long answers)
+  warm_on_start: true      # preload the model at startup and after each build so the first answer is fast
 
 retrieval:
   top_k: 5
