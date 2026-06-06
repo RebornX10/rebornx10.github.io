@@ -29,9 +29,17 @@ from app.config import CONFIG
 from app.corpus import (
     cache_key, list_cached, load_from_cache, load_with_topic, save_corpus, save_to_cache,
 )
+from app.arxiv import fetch_metadata as arxiv_fetch
 from app.download import download_fulltext
 from app.ollama_client import chat, chat_stream, pick_model, verify_claims
 from app.openalex import fetch_metadata
+
+SOURCES = ("openalex", "arxiv")
+
+
+def _fetcher(source):
+    # openalex resolves to the module-global name so tests can monkeypatch it
+    return arxiv_fetch if source == "arxiv" else fetch_metadata
 from app.retrieval import build_context
 from app.system import (
     _mem_limit_bytes, _mem_used_bytes, available_cpus, download_workers, effective_max_papers,
@@ -73,7 +81,8 @@ def _set_corpus(df, topic: str, key: str = "") -> None:
                 _LOADED.popitem(last=False)
 
 
-def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> None:
+def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int,
+              source: str = "openalex") -> None:
     job = JOBS[job_id]
     dl = CONFIG["download"]
     guard = dl.get("ram_guard_pct", 85) / 100.0
@@ -87,7 +96,7 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
              topic, n, workers, baseline / 1e9, total_ram / 1e9, guard * 100)
 
     # Cache hit: identical request -> load instantly, no OpenAlex, no downloads.
-    key = cache_key(topic, date_from, date_to, n)
+    key = cache_key(topic, date_from, date_to, n, source)
     cached = load_from_cache(key)
     if cached is not None and not job.get("cancel"):
         _set_corpus(cached, topic, key)
@@ -113,15 +122,16 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int) -> 
             filters.append(f"to_publication_date:{date_to}")
         extra = ",".join(filters) or None
 
-        job.update(stage="Searching OpenAlex…", progress=4)
+        job.update(stage=f"Searching {source}…", progress=4)
         DL.update(active=True, done=0, total=n, avg_s=0.0, t0=time.monotonic())
 
         # Pipeline: submit each paper for download as its metadata page streams in,
-        # so PDF fetches overlap the (sequential, cursor-paged) OpenAlex search.
+        # so PDF fetches overlap the (sequential) source search.
+        fetch = _fetcher(source)
         papers, futures = [], {}
         ex = ThreadPoolExecutor(max_workers=max(1, workers))
         try:
-            for paper in fetch_metadata(n, search=topic or None, extra_filters=extra):
+            for paper in fetch(n, search=topic or None, extra_filters=extra):
                 if job.get("cancel"):
                     state["cancelled"] = True
                     break
@@ -213,12 +223,15 @@ def build(request):
         return HttpResponseBadRequest("topic is required")
     n = max(1, min(int(data.get("n", CONFIG["openalex"]["max_papers"])),
                    effective_max_papers()))
+    source = (data.get("source") or "openalex").strip().lower()
+    if source not in SOURCES:
+        source = "openalex"
     job_id = uuid.uuid4().hex
     JOBS[job_id] = {"stage": "Starting…", "progress": 0, "done": False, "error": False,
                     "cancel": False}
     threading.Thread(
         target=run_build,
-        args=(job_id, topic, data.get("date_from", ""), data.get("date_to", ""), n),
+        args=(job_id, topic, data.get("date_from", ""), data.get("date_to", ""), n, source),
         daemon=True,
     ).start()
     return JsonResponse({"job_id": job_id})

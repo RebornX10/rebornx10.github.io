@@ -35,6 +35,12 @@
           <div><label>From date</label><input id="from" type="date"></div>
           <div><label>To date</label><input id="to" type="date"></div>
           <div><label>Max papers</label><input id="n" type="number" value="25" min="1" max="{{MAX_PAPERS}}"></div>
+          <div><label>Source</label>
+            <select id="source">
+              <option value="openalex">OpenAlex</option>
+              <option value="arxiv">arXiv</option>
+            </select>
+          </div>
         </div>
         <div class="btnrow">
           <button id="go">Download topic</button>

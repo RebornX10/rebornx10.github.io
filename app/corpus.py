@@ -70,8 +70,8 @@ def _cache_dir() -> str:
     return d
 
 
-def cache_key(topic: str, date_from: str, date_to: str, n: int) -> str:
-    raw = f"{(topic or '').strip().lower()}|{date_from}|{date_to}|{n}"
+def cache_key(topic: str, date_from: str, date_to: str, n: int, source: str = "openalex") -> str:
+    raw = f"{source}|{(topic or '').strip().lower()}|{date_from}|{date_to}|{n}"
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 

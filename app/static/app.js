@@ -103,7 +103,8 @@ $('go').onclick = async () => {
   $('go').disabled = true; $('bar').style.width = '2%';
   $('stage').textContent = 'Starting…'; $('qa').classList.add('disabled');
   const {job_id, error} = await post('/build', {
-    topic, date_from: $('from').value, date_to: $('to').value, n: +$('n').value });
+    topic, date_from: $('from').value, date_to: $('to').value, n: +$('n').value,
+    source: $('source').value });
   if (error || !job_id) { $('stage').textContent = error || 'Failed to start.';
                           $('go').disabled = false; return; }
   _jobId = job_id;

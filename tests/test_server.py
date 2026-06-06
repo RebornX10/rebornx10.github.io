@@ -129,6 +129,34 @@ def test_build_starts_job(monkeypatch):
     assert "df" in server.CORPUS
 
 
+def test_build_routes_to_arxiv_source(monkeypatch):
+    captured = {}
+
+    def fake_run(job_id, topic, date_from, date_to, n, source="openalex"):
+        captured["source"] = source
+        server.JOBS[job_id]["done"] = True
+
+    monkeypatch.setattr(server, "run_build", fake_run)
+    resp = server.build(rf.post("/build", data=json.dumps({"topic": "x", "source": "arxiv"}),
+                                content_type="application/json"))
+    _wait_done(json.loads(resp.content)["job_id"])
+    assert captured["source"] == "arxiv"
+
+
+def test_build_defaults_unknown_source_to_openalex(monkeypatch):
+    captured = {}
+
+    def fake_run(job_id, topic, date_from, date_to, n, source="openalex"):
+        captured["source"] = source
+        server.JOBS[job_id]["done"] = True
+
+    monkeypatch.setattr(server, "run_build", fake_run)
+    resp = server.build(rf.post("/build", data=json.dumps({"topic": "x", "source": "bogus"}),
+                                content_type="application/json"))
+    _wait_done(json.loads(resp.content)["job_id"])
+    assert captured["source"] == "openalex"
+
+
 def test_build_handles_no_results(monkeypatch):
     monkeypatch.setattr(server, "fetch_metadata", lambda *a, **k: [])
     resp = server.build(rf.post("/build", data=json.dumps({"topic": "x"}),
@@ -140,7 +168,7 @@ def test_build_handles_no_results(monkeypatch):
 def test_build_clamps_to_cap(monkeypatch):
     captured = {}
 
-    def fake_run_build(job_id, topic, date_from, date_to, n):
+    def fake_run_build(job_id, topic, date_from, date_to, n, source="openalex"):
         captured["n"] = n
         server.JOBS[job_id]["done"] = True
 
