@@ -9,7 +9,7 @@ const SHELL = [
   '/static/icon-192.png', '/static/icon-512.png', '/static/icon-maskable-512.png',
   '/static/apple-touch-icon.png', '/static/favicon.png',
 ];
-const API = ['/build', '/status', '/ask', '/ask_stream', '/suggest', '/metrics', '/events',
+const API = ['/build', '/status', '/ask', '/ask_stream', '/suggest', '/metrics', '/events', '/stats',
              '/corpus', '/corpora', '/corpus/select', '/cancel',
              '/download/csv', '/download/parquet', '/download/bibtex', '/download/ris'];
 

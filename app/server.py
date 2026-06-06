@@ -69,6 +69,16 @@ _LOCK = threading.Lock()
 # Live download stats for the System panel (polled via /metrics every second).
 DL: dict[str, object] = {"active": False, "done": 0, "total": 0, "avg_s": 0.0, "t0": 0.0}
 
+# Cumulative observability counters (exposed at /stats).
+STATS: dict = {"started": time.time(), "builds": 0, "papers": 0, "with_text": 0,
+               "questions": 0, "retrieval_ms": [], "answer_ms": [], "last_build_s": 0.0}
+
+
+def _cap(lst: list, v, n: int = 100) -> None:
+    lst.append(v)
+    if len(lst) > n:
+        del lst[:-n]
+
 
 def _checkpoint(papers, out: str) -> None:
     """Write a partial parquet so an interrupted build isn't lost entirely."""
@@ -198,6 +208,10 @@ def run_build(job_id: str, topic: str, date_from: str, date_to: str, n: int,
         except OSError:
             pass
         with_text = int(df["content"].notna().sum())
+        STATS["builds"] += 1
+        STATS["papers"] += total
+        STATS["with_text"] += with_text
+        STATS["last_build_s"] = round(time.monotonic() - DL["t0"], 1)
         log.info("Build done: %d papers, %d with full text, RAM now %.2f GB",
                  total, with_text, _mem_used_bytes() / 1e9)
         job.update(stage=f"Done — {total} papers ({with_text} with full text).",
@@ -308,9 +322,12 @@ def ask_stream(request):
     question = (json.loads(request.body or "{}").get("question") or "").strip()
     if not question:
         return HttpResponseBadRequest("question is required")
+    t_retr = time.monotonic()
     context, sources = build_context(df, question)
+    retrieval_ms = round((time.monotonic() - t_retr) * 1000, 1)
 
     def gen():
+        t_ans = time.monotonic()
         yield _sse({"sources": sources, "model": model})
         try:
             parts = []
@@ -328,6 +345,10 @@ def ask_stream(request):
         except Exception as e:
             log.warning("ask_stream failed: %s", e)
             yield _sse({"error": f"Ollama error: {e}"})
+        finally:
+            STATS["questions"] += 1
+            _cap(STATS["retrieval_ms"], retrieval_ms)
+            _cap(STATS["answer_ms"], round((time.monotonic() - t_ans) * 1000, 1))
 
     resp = StreamingHttpResponse(gen(), content_type="text/event-stream")
     resp["Cache-Control"] = "no-cache"
@@ -535,6 +556,22 @@ def metrics_view(request):
     return JsonResponse(_metrics_payload())
 
 
+def stats_view(request):
+    """Cumulative observability counters (builds, papers, timings)."""
+    def avg(xs):
+        return round(sum(xs) / len(xs), 1) if xs else 0.0
+    return JsonResponse({
+        "uptime_s": round(time.time() - STATS["started"]),
+        "builds": STATS["builds"],
+        "papers": STATS["papers"],
+        "with_text": STATS["with_text"],
+        "questions": STATS["questions"],
+        "last_build_s": STATS["last_build_s"],
+        "avg_retrieval_ms": avg(STATS["retrieval_ms"]),
+        "avg_answer_ms": avg(STATS["answer_ms"]),
+    })
+
+
 def events(request):
     """SSE push of live metrics (~1s) plus the active build's status, so the UI
     doesn't poll. `?job=<id>` includes that job's status in each tick."""
@@ -617,6 +654,7 @@ urlpatterns = [
     path("download/bibtex", download_bibtex),
     path("download/ris", download_ris),
     path("metrics", metrics_view),
+    path("stats", stats_view),
     path("events", events),
     path("static/styles.css", app_css),
     path("static/app.js", app_js),

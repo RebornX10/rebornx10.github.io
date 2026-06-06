@@ -180,6 +180,24 @@ def test_build_clamps_to_cap(monkeypatch):
     assert captured["n"] == server.effective_max_papers()
 
 
+def test_stats_endpoint_shape():
+    data = json.loads(server.stats_view(rf.get("/stats")).content)
+    for k in ("uptime_s", "builds", "papers", "questions", "avg_answer_ms", "avg_retrieval_ms"):
+        assert k in data
+
+
+def test_stats_counts_a_question(monkeypatch):
+    server.CORPUS["df"] = pd.DataFrame([
+        {"title": "T", "abstract": "a", "content": "c", "authors": ["A"], "journal": "J", "date": "2023"}])
+    monkeypatch.setattr(server, "pick_model", lambda: "m")
+    monkeypatch.setattr(server, "chat_stream", lambda q, c, m: iter(["hi"]))
+    before = server.STATS["questions"]
+    resp = server.ask_stream(rf.post("/ask_stream", data=json.dumps({"question": "q"}),
+                                     content_type="application/json"))
+    b"".join(resp.streaming_content)   # exhaust the stream so the finally-block records
+    assert server.STATS["questions"] == before + 1
+
+
 def test_events_streams_metrics_and_status():
     server.JOBS["e1"] = {"stage": "done", "progress": 100, "done": True, "error": False}
     resp = server.events(rf.get("/events?job=e1"))
