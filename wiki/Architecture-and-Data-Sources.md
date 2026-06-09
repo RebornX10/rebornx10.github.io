@@ -1,68 +1,105 @@
 # Architecture & Data Sources
 
+This page explains **how a question becomes a cited answer** — the full path from a search to grounded text — and the pieces that make it fast and robust.
+
 ## Pipeline overview
 
 ```
-OpenAlex API ──► metadata (authors, title, date, journal, country, theme)
-      │           keep only papers with a legal open-access PDF
-      ▼
-Download PDFs ──► parallel fetch from OA locations (repositories preferred)
-      ▼
-PyMuPDF ───────► extract plain text  → the `content` column
-      ▼
-pandas ────────► one row per paper → papers.parquet / papers.csv
-      ▼
-Ask a question ► rank relevant papers ► Ollama answer + citations
+  You pick: topic · dates · count · source
+        │
+        ▼
+  Source API ───► metadata (authors, title, date, journal, country, theme, PDF links)
+        │          OpenAlex · arXiv · PubMed Central · Crossref — open-access only
+        │          (each paper is submitted for download as soon as it streams in)
+        ▼
+  Download PDFs ─► parallel fetch from the open-access locations
+        │          (I/O-oversubscribed thread pool; repositories preferred)
+        ▼
+  PyMuPDF ───────► extract plain text (bounded + crash-safe) → the `content` column
+        ▼
+  pandas ────────► one row per paper → in-memory CORPUS + papers.parquet/.csv + on-disk cache
+        ▼
+  Ask a question ► retrieve the most relevant passages (BM25 + optional embeddings)
+        ▼
+  Ollama ────────► stream a Markdown answer with [n] citations (+ optional verification)
 ```
+
+The build is **pipelined**: downloads start while metadata is still arriving, so the network is busy the whole time instead of waiting for the search to finish first.
 
 ## Module map
 
 | Module | Responsibility |
 |---|---|
 | `app/config.py` | Load `config.yaml` + apply env overrides → `CONFIG` |
-| `app/http.py` | Shared `requests.Session` (pooled) + browser User-Agent |
+| `app/http.py` | Shared pooled `requests.Session` + browser User-Agent |
 | `app/models.py` | The `Paper` dataclass (the unit of data) |
 | `app/openalex.py` | Query OpenAlex, parse works into `Paper`s |
-| `app/download.py` | Download OA PDFs (parallel) + extract text |
+| `app/arxiv.py` | arXiv Atom API adapter |
+| `app/pubmed.py` | PubMed Central (open-access subset) via NCBI E-utilities |
+| `app/crossref.py` | Crossref REST API adapter |
+| `app/download.py` | Download OA PDFs (parallel) + extract text (bounded/crash-safe) |
 | `app/theme.py` | Optional LLM theme tagging via Anthropic |
-| `app/corpus.py` | Orchestrate metadata→fulltext→theme→DataFrame; save |
-| `app/ollama_client.py` | Talk to global Ollama (list models, chat) |
-| `app/retrieval.py` | Pick relevant papers + build LLM context (RAG) |
-| `app/server.py` | Django app: views, routes, background build jobs |
+| `app/corpus.py` | Assemble the DataFrame; save; on-disk corpus cache |
+| `app/retrieval.py` | Passage retrieval (BM25 + optional embeddings) → LLM context |
+| `app/ollama_client.py` | Talk to local Ollama (models, chat/stream, embed, warm-up) |
+| `app/system.py` | CPU/RAM detection, worker sizing, paper caps, live metrics |
+| `app/server.py` | Django app: views, routes, background builds, SSE |
 | `main.py` | Entry point (`run()`) |
 | `pipeline.py` | Back-compat shim re-exporting the package API for notebooks |
 
 ## Data sources
 
-### OpenAlex (metadata + OA links)
-[OpenAlex](https://openalex.org) is a free, open catalogue of ~250M scholarly works. The app queries the `/works` endpoint with `is_oa:true` and `has_fulltext:true`, paginates with a cursor, and reads:
-- `authorships` → author names + `countries` (institution country)
-- `primary_location.source.display_name` → journal/venue
-- `publication_date`, `doi`, `title`
-- `abstract_inverted_index` → reconstructed into a plain-text abstract
-- `primary_topic.display_name` → the default `theme`
-- `locations[].pdf_url` → candidate open-access PDF URLs
+All four sources return the same `Paper` shape and keep **only open-access items with a downloadable PDF**. Pick one in the UI's **Source** selector (or `source` in `POST /build`). The on-disk cache key includes the source, so corpora from different sources never collide.
 
-Setting a `mailto` puts requests in OpenAlex's faster "polite pool".
+### OpenAlex *(default)*
+[OpenAlex](https://openalex.org) is a free catalogue of ~250M scholarly works. The app queries `/works` with `is_oa:true` + `has_fulltext:true`, paginates with a cursor, and reads authors + institution countries, journal, date, DOI, the abstract (rebuilt from an inverted index), the primary topic (as `theme`), citation count, and a ranked list of OA PDF URLs. A `mailto` puts you in OpenAlex's faster "polite pool". **Date filters apply here.**
+
+### arXiv
+The [arXiv Atom API](https://info.arxiv.org/help/api/) — great for physics, CS, and maths preprints. Each entry yields title, authors, summary (as abstract), the primary category (as `theme`), DOI if present, and a PDF URL (derived from the `/abs/` id when not given). Date filters are ignored by arXiv.
+
+### PubMed Central
+The **open-access subset** of [PubMed Central](https://www.ncbi.nlm.nih.gov/pmc/) via NCBI E-utilities (`esearch` → `esummary`). Best for biomedical literature. Yields title, authors, journal, date, DOI, and the PMC PDF URL. Abstracts come from the PDF text (esummary omits them).
+
+### Crossref
+The [Crossref REST API](https://api.crossref.org) — a broad DOI index across publishers. Cursor-paged; keeps items that expose an open `application/pdf` link. Yields title, authors, journal, date, DOI, subject (as `theme`), and a JATS-stripped abstract.
 
 ### Open-access PDFs (full text)
-PDF URLs come straight from OpenAlex's `locations`. The downloader **prefers repository copies** (PMC, arXiv, Zenodo, institutional repos) over publisher copies, because publishers frequently block bots with `403`. It tries candidates in ranked order, sends a browser-like User-Agent, streams the bytes (with a size cap), and parses text with PyMuPDF. This is why coverage is ~75–90%, not 100% — some papers' only OA copy is publisher-hosted and blocked.
+The downloader **prefers repository copies** (PMC, arXiv, Zenodo, institutional repos) over publisher copies, because publishers often block bots with `403`. It tries candidate URLs in ranked order, sends a browser-like User-Agent, streams the bytes (with a size cap and a per-paper deadline), and extracts text with PyMuPDF. This is why coverage is ~75–90%, not 100% — some papers' only OA copy is publisher-hosted and blocked.
 
-### Ollama (global LLM)
-[Ollama](https://ollama.com) serves a global model over HTTP (`:11434`). The app lists installed models, picks one (or uses `OLLAMA_MODEL`), and sends a single chat request per question. Nothing leaves your machine.
+### Ollama (local LLM)
+[Ollama](https://ollama.com) serves a model over HTTP (`:11434`). The app lists installed models, picks one (or uses `OLLAMA_MODEL`), and streams a chat response per question. It also keeps the model **warm** (see below). Nothing leaves your machine. The same Ollama server can host an **embedding model** (`nomic-embed-text`) for retrieval re-ranking.
 
 ### Anthropic (optional)
-If `with_theme=True`, the `theme` column is generated by Claude instead of using OpenAlex topics. Requires `ANTHROPIC_API_KEY`.
+If theme tagging is enabled, the `theme` column is generated by Claude instead of the source's topic. Requires `ANTHROPIC_API_KEY`.
+
+## How retrieval works (RAG)
+
+When you ask a question, `build_context` (in `app/retrieval.py`):
+
+1. **Splits papers into passages** — title+abstract plus overlapping content chunks — so the relevant part of a long paper can be found.
+2. **Scores passages with BM25** (keyword relevance), optionally fusing several LLM-generated query variants (multi-query) by reciprocal-rank fusion.
+3. **Optionally re-ranks** the top candidates by **embedding similarity** when an embedding model is installed (cosine similarity; embeddings are cached on disk so papers aren't re-embedded).
+4. **Builds the context**: the best excerpt per paper, numbered `[1] [2] …`, trimmed to a character budget.
+
+The numbered context + your question go to Ollama, which streams the answer. An optional **verification pass** then checks each claim against the sources and flags anything unsupported.
+
+## Keeping answers fast (model warm-up)
+
+By default Ollama unloads a model from memory after a few minutes idle, so the next question would pay a slow multi-GB reload. The app avoids this by:
+- sending **`keep_alive`** on every call (the model stays resident between questions), and
+- **warming the model** — a background preload at startup, after each build, and on a cache hit — so your *first* question is already fast.
+
+See **[Configuration → Slow answers](Configuration#tuning-notes)** for the knobs.
 
 ## Request lifecycle (web app)
 
-1. **`POST /build`** validates the topic, clamps `n` to `max_papers_cap`, creates a job, and starts a background thread (`run_build`).
-2. `run_build` calls `fetch_metadata` → `download_many` (parallel, reporting progress) → builds a DataFrame → stores it in the in-memory `CORPUS` and saves to disk.
-3. The browser polls **`GET /status?job=…`** every 0.5s to drive the progress bar + stopwatch.
-4. **`POST /ask`** ranks the corpus against the question (`build_context`), sends the context + question to Ollama (`chat`), and returns the answer + source titles.
+1. **`POST /build`** validates the topic, clamps `n` to the RAM-aware cap, picks the source, creates a job, and starts a background thread (`run_build`). Identical past requests load instantly from the on-disk cache.
+2. `run_build` streams metadata from the source, submits each paper for download as it arrives, assembles a DataFrame into the in-memory `CORPUS`, saves it, and warms the model.
+3. The browser receives **live progress + metrics + stats** over one **`GET /events`** Server-Sent-Events stream (it falls back to polling `/status` + `/metrics` if SSE can't connect).
+4. **`POST /ask_stream`** retrieves the relevant passages, then streams the answer token-by-token (with a final `verify` event when verification is on). A non-streaming **`POST /ask`** exists as a fallback.
 
-State (`JOBS`, `CORPUS`) is in-memory and single-process — see [Use Cases](Use-Cases) for the implications.
+State (`JOBS`, `CORPUS`) is in-memory and single-process — see [Use Cases](Use-Cases) for the implications, and [Web API](Web-API) for every endpoint.
 
-## Why OpenAlex instead of scraping
+## Why open catalogues instead of scraping
 
-It's legal, free, comprehensive, and gives structured metadata + OA links in one place. The corpus is reproducible and the full-text we fetch is openly licensed.
+They're legal, free, and comprehensive, and give structured metadata + OA links in one place. The corpus is reproducible and the full text we fetch is openly licensed.

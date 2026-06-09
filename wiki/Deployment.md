@@ -47,13 +47,6 @@ A **Docker** Space that runs Ollama **and** the app together (free CPU tier). Fi
 
 **Caveats:** CPU-only (slow answers), model pulled on cold start, ephemeral storage (corpora reset on restart). Fine for a demo; for real use run globally or on GPU hardware.
 
-## Continuous integration (`.github/workflows/ci.yml`)
-On push/PR to `master`:
-- **test** — Python 3.11, `pip install -r requirements.txt -r requirements-dev.txt`, `pytest`.
-- **docker** — `docker build` to validate the image.
-
-Both must pass for the CI badge to be green.
-
 ## PWA & offline behaviour
 The app is an installable PWA. The web manifest is served at `/manifest.webmanifest` and the service worker at `/sw.js` (root scope). Caching strategy (`app/static/sw.js`):
 
@@ -62,13 +55,13 @@ The app is an installable PWA. The web manifest is served at `/manifest.webmanif
 - **Static assets** use stale-while-revalidate.
 - **Live API calls** (`/build`, `/ask_stream`, `/events`, `/corpus*`, `/download/*`, `/stats`, …) are never cached — they always hit the network.
 
-The cache name embeds an asset hash injected by the server (`_SW_VERSION`), so deploying changed HTML/CSS/JS automatically busts old caches; no manual version bump needed. Note that **building corpora and asking questions require connectivity** (OpenAlex/arXiv + Ollama); offline mode only guarantees the shell loads.
+The cache name embeds an asset hash injected by the server (`_SW_VERSION`), so deploying changed HTML/CSS/JS automatically busts old caches; no manual version bump needed. Note that **building corpora and asking questions require connectivity** (OpenAlex/arXiv + Ollama); offline mode only guarantees the shell loads (the source APIs — OpenAlex/arXiv/PubMed/Crossref — and Ollama all need connectivity).
 
 **Install:** open the app over HTTPS (e.g. the Hugging Face Space URL) → browser "Install app" / "Add to Home Screen". Installation isn't offered inside a cross-origin iframe (e.g. the embed on the Pages site) — use the Space URL directly.
 
 ## Continuous integration
-- **ci.yml** (push/PR): unit tests + a Docker build. Ollama is mocked, so it's fast.
-- **ollama-integration.yml** (manual, Actions tab): installs Ollama, pulls `qwen2.5:0.5b` + `nomic-embed-text`, and runs the suite with `RUN_OLLAMA_INTEGRATION=1` to exercise the real chat/embedding path.
+- **`ci.yml`** (every push/PR to `master`): **test** (Python 3.11, install deps, `pytest`) + **docker** (`docker build` validates the image). Ollama is mocked, so it's fast; both must pass for the CI badge to be green.
+- **`ollama-integration.yml`** (manual, Actions tab): installs Ollama, pulls `qwen2.5:0.5b` + `nomic-embed-text`, and runs the suite with `RUN_OLLAMA_INTEGRATION=1` to exercise the real chat/embedding path.
 - **Dependabot** (`.github/dependabot.yml`): weekly pip + github-actions update PRs.
 
 ## Releases

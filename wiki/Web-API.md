@@ -7,7 +7,7 @@ Base URL examples: `http://localhost:8000` (global), `https://samdnx-sci-paper-r
 ---
 
 ## `GET /`
-Returns the HTML UI. Template placeholders are filled server-side: the detected Ollama model, the `max_papers_cap` (for the input's `max`), and a banner if no model is installed.
+Returns the HTML UI. Template placeholders are filled server-side: the detected Ollama model, the effective max-papers cap (for the input's `max`), the Allocation-panel figures (download workers, CPU threads, RAM allocated), and a banner if no model is installed.
 
 ---
 
